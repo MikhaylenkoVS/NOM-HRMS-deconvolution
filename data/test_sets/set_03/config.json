@@ -1,0 +1,51 @@
+{
+  "set_id": "set_03",
+  "mass_range": {
+    "min": 100.0,
+    "max": 1000.0
+  },
+  "ppm_error": {
+    "type": "normal",
+    "mean": 0.0,
+    "std": 0.2,
+    "max_abs": 0.5
+  },
+  "intensity": {
+    "scale": "linear",
+    "max_intensity": 100000.0
+  },
+  "noise": {
+    "peak_count": 500,
+    "intensity_fraction_max": 0.1
+  },
+  "derivatization": {
+    "deutermethyl": {
+      "target_groups": [
+        "COOH"
+      ],
+      "mass_shift_per_group": 17.0345,
+      "label": "CD3",
+      "conversion_yield": 1.0
+    },
+    "deuteroacyl": {
+      "target_groups": [
+        "OH"
+      ],
+      "mass_shift_per_group": 48.0211,
+      "label": "CD3CO",
+      "conversion_yield": 1.0
+    }
+  },
+  "adducts": {
+    "pos": [
+      "[M+H]+"
+    ],
+    "neg": [
+      "[M-H]-"
+    ]
+  },
+  "rounding": {
+    "mass_decimals": 5,
+    "intensity_decimals": 1
+  }
+}

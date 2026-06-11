@@ -1,0 +1,36 @@
+# IDE и окружения
+.idea/
+.vscode/
+.venv/
+venv/
+__pycache__/
+
+# pytest и прочий мусор
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# артефакты сборки exe и прочего
+build/
+dist/
+*.spec
+
+# большие данные и промежуточные результаты
+raw/
+data/raw/
+data/interim/
+results/
+output/
+logs/
+*.log
+
+# форматы сырых MS-данных — никогда не храним в Git
+*.raw
+*.RAW
+*.mzML
+*.mzXML
+*.mzData
+*.d
+*.wiff
+*.tdf
+*.tsf
