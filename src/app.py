@@ -10,14 +10,18 @@ import threading
 import traceback
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
-
+from .ui.theme import (
+    BG, FG, ACCENT, PANEL, BTN,
+    OK, WARN, FONT, MONO,
+    _style, _mpl_style,
+)
 import pandas as pd
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-
-from structure_viewer import StructureViewerTab
+from .ui.plots import embed_figure, clear_canvas
+from .structures.tab import StructureViewerTab
 # ── Импорт пайплайна из core.py ──────────────────────────────────────────────
 try:
     from core import (
@@ -33,75 +37,6 @@ except Exception as _core_err:
     CORE_LOADED = False
     _CORE_ERROR = str(_core_err)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  ВСПОМОГАТЕЛЬНЫЕ УТИЛИТЫ
-# ═══════════════════════════════════════════════════════════════════════════════
-
-THEME_BG     = "#1e1e2e"
-THEME_FG     = "#cdd6f4"
-THEME_ACCENT = "#89b4fa"
-THEME_PANEL  = "#313244"
-THEME_BTN    = "#45475a"
-THEME_OK     = "#a6e3a1"
-THEME_WARN   = "#f38ba8"
-THEME_FONT   = ("Segoe UI", 10)
-THEME_MONO   = ("Consolas", 9)
-
-def _style(root: tk.Tk) -> ttk.Style:
-    s = ttk.Style(root)
-    s.theme_use("clam")
-    s.configure(".",           background=THEME_BG, foreground=THEME_FG,
-                               font=THEME_FONT, fieldbackground=THEME_PANEL)
-    s.configure("TFrame",      background=THEME_BG)
-    s.configure("TLabelframe", background=THEME_BG, foreground=THEME_ACCENT)
-    s.configure("TLabelframe.Label", background=THEME_BG, foreground=THEME_ACCENT,
-                font=("Segoe UI", 10, "bold"))
-    s.configure("TLabel",      background=THEME_BG, foreground=THEME_FG)
-    s.configure("TButton",     background=THEME_BTN, foreground=THEME_FG,
-                               relief="flat", padding=4)
-    s.map("TButton",           background=[("active", THEME_ACCENT)],
-                               foreground=[("active", THEME_BG)])
-    s.configure("Accent.TButton", background=THEME_ACCENT, foreground=THEME_BG,
-                                  font=("Segoe UI", 10, "bold"))
-    s.map("Accent.TButton",    background=[("active", "#74c7ec")])
-    s.configure("TEntry",      fieldbackground=THEME_PANEL, foreground=THEME_FG,
-                               insertcolor=THEME_FG)
-    s.configure("TCombobox",   fieldbackground=THEME_PANEL, foreground=THEME_FG,
-                               selectbackground=THEME_ACCENT)
-    s.configure("TNotebook",   background=THEME_BG, tabmargins=0)
-    s.configure("TNotebook.Tab", background=THEME_BTN, foreground=THEME_FG,
-                                 padding=[12, 5])
-    s.map("TNotebook.Tab",     background=[("selected", THEME_ACCENT)],
-                               foreground=[("selected", THEME_BG)])
-    s.configure("TCheckbutton", background=THEME_BG, foreground=THEME_FG)
-    s.configure("Treeview",    background=THEME_PANEL, foreground=THEME_FG,
-                               fieldbackground=THEME_PANEL, rowheight=22)
-    s.configure("Treeview.Heading", background=THEME_BTN, foreground=THEME_ACCENT,
-                                    font=("Segoe UI", 10, "bold"))
-    s.map("Treeview",          background=[("selected", THEME_ACCENT)],
-                               foreground=[("selected", THEME_BG)])
-    s.configure("TScrollbar",  background=THEME_BTN, troughcolor=THEME_PANEL,
-                               arrowcolor=THEME_FG)
-    s.configure("TProgressbar", troughcolor=THEME_PANEL, background=THEME_ACCENT)
-    return s
-
-
-def _mpl_style():
-    plt.rcParams.update({
-        "figure.facecolor":  THEME_BG,
-        "axes.facecolor":    THEME_PANEL,
-        "axes.edgecolor":    THEME_FG,
-        "axes.labelcolor":   THEME_FG,
-        "text.color":        THEME_FG,
-        "xtick.color":       THEME_FG,
-        "ytick.color":       THEME_FG,
-        "grid.color":        "#45475a",
-        "grid.alpha":        0.4,
-        "lines.linewidth":   1.2,
-    })
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ГЛАВНОЕ ОКНО
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -111,7 +46,7 @@ class App(tk.Tk):
         super().__init__()
         self.title("MS Functional Groups Analyzer")
         self.geometry("1200x760")
-        self.configure(bg=THEME_BG)
+        self.configure(bg=BG)
         self.resizable(True, True)
         _style(self)
         _mpl_style()
@@ -149,14 +84,14 @@ class App(tk.Tk):
 
         if not CORE_LOADED:
             self._log(f"[ОШИБКА] Не удалось импортировать core.py:\n{_CORE_ERROR}",
-                      color=THEME_WARN)
+                      color=WARN)
 
     # ── ПОСТРОЕНИЕ ИНТЕРФЕЙСА ─────────────────────────────────────────────────
 
     def _build_ui(self):
         # Заголовок
         hdr = tk.Label(self, text="⚗  MS Functional Groups Analyzer",
-                       bg=THEME_BG, fg=THEME_ACCENT,
+                       bg=BG, fg=ACCENT,
                        font=("Segoe UI", 16, "bold"))
         hdr.pack(fill="x", padx=16, pady=(12, 4))
 
@@ -188,7 +123,7 @@ class App(tk.Tk):
         # Статусная строка
         self.status_var = tk.StringVar(value="Готов к работе")
         status_bar = tk.Label(self, textvariable=self.status_var,
-                              bg=THEME_PANEL, fg=THEME_FG,
+                              bg=PANEL, fg=FG,
                               font=("Segoe UI", 9), anchor="w", padx=8)
         status_bar.pack(fill="x", side="bottom")
         self.progress = ttk.Progressbar(self, mode="indeterminate", length=200)
@@ -394,14 +329,14 @@ class App(tk.Tk):
                    command=self._clear_log).pack(side="left", padx=4)
 
         self.log_text = scrolledtext.ScrolledText(
-            frame, bg=THEME_PANEL, fg=THEME_FG,
-            font=THEME_MONO, relief="flat",
-            insertbackground=THEME_FG
+            frame, bg=PANEL, fg=FG,
+            font=MONO, relief="flat",
+            insertbackground=FG
         )
         self.log_text.pack(fill="both", expand=True, padx=8, pady=4)
-        self.log_text.tag_config("ok",   foreground=THEME_OK)
-        self.log_text.tag_config("warn", foreground=THEME_WARN)
-        self.log_text.tag_config("info", foreground=THEME_ACCENT)
+        self.log_text.tag_config("ok",   foreground=OK)
+        self.log_text.tag_config("warn", foreground=WARN)
+        self.log_text.tag_config("info", foreground=ACCENT)
 
     # ═══════════════════════════════════════════════════════════════════════════
     #  ДЕЙСТВИЯ
@@ -423,8 +358,8 @@ class App(tk.Tk):
         if path:
             var.set(path)
 
-    def _log(self, msg: str, color: str = THEME_FG):
-        tag = "ok" if color == THEME_OK else ("warn" if color == THEME_WARN else "info")
+    def _log(self, msg: str, color: str = FG):
+        tag = "ok" if color == OK else ("warn" if color == WARN else "info")
         self.log_text.insert("end", msg + "\n", tag)
         self.log_text.see("end")
 
@@ -507,15 +442,15 @@ class App(tk.Tk):
     def _on_run_success(self, log_text: str):
         self.progress.stop()
         self._set_status(f"Готово. Найдено {len(self.result_df)} соединений.")
-        self._log(log_text, color=THEME_FG)
-        self._log("✅ Анализ завершён успешно.", color=THEME_OK)
+        self._log(log_text, color=FG)
+        self._log("✅ Анализ завершён успешно.", color=OK)
         self._fill_result_table(self.result_df)
         self._auto_plot_hist()
 
     def _on_run_error(self, tb: str):
         self.progress.stop()
         self._set_status("Ошибка! Смотри лог.")
-        self._log(tb, color=THEME_WARN)
+        self._log(tb, color=WARN)
         messagebox.showerror("Ошибка выполнения", tb[:400])
 
     # ── Таблица результатов ───────────────────────────────────────────────────
@@ -539,7 +474,7 @@ class App(tk.Tk):
                 tag = "warn"
             self.result_tree.insert("", "end", values=vals, tags=(tag,))
 
-        self.result_tree.tag_configure("warn", foreground=THEME_WARN)
+        self.result_tree.tag_configure("warn", foreground=WARN)
 
     def _sort_tree(self, col: str):
         if self.result_df is None:
@@ -561,7 +496,7 @@ class App(tk.Tk):
         )
         if path:
             self.result_df.to_csv(path, index=False, sep=";", encoding="utf-8-sig")
-            self._log(f"Таблица сохранена: {path}", color=THEME_OK)
+            self._log(f"Таблица сохранена: {path}", color=OK)
 
     # ── Графики спектров ──────────────────────────────────────────────────────
 
@@ -591,15 +526,15 @@ class App(tk.Tk):
         self._clear_canvas(self.spectra_canvas_frame)
 
         fig, axes = plt.subplots(3, 1, figsize=(9, 7), sharex=True)
-        colors = [THEME_ACCENT, "#a6e3a1", "#fab387"]
+        colors = [ACCENT, "#a6e3a1", "#fab387"]
         for ax, (title, df), color in zip(axes, dfs.items(), colors):
             ax.vlines(df["mass"], 0, df["intensity"],
                       colors=color, linewidth=0.8, alpha=0.8)
             ax.set_ylabel("Intensity", fontsize=8)
-            ax.set_title(title, fontsize=9, loc="left", color=THEME_FG)
+            ax.set_title(title, fontsize=9, loc="left", color=FG)
             ax.grid(True, alpha=0.3)
         axes[-1].set_xlabel("m/z", fontsize=9)
-        fig.suptitle("Три масс-спектра", color=THEME_ACCENT, fontsize=11)
+        fig.suptitle("Три масс-спектра", color=ACCENT, fontsize=11)
         fig.tight_layout()
 
         self._embed_figure(fig, self.spectra_canvas_frame)
@@ -618,7 +553,7 @@ class App(tk.Tk):
 
         df = self.result_df[self.result_df[col_n] > 0].copy()
         if df.empty:
-            self._log(f"Серии {label}: не найдено.", color=THEME_WARN)
+            self._log(f"Серии {label}: не найдено.", color=WARN)
             return
 
         n_plots = min(len(df), 9)
@@ -645,22 +580,22 @@ class App(tk.Tk):
                 except Exception:
                     missing = []
 
-            colors_bars = [THEME_WARN if s in missing else THEME_OK for s in steps]
+            colors_bars = [WARN if s in missing else OK for s in steps]
             ax.bar(steps, [1] * len(steps), color=colors_bars, alpha=0.8, width=0.6)
             ax.set_xticks(steps)
             ax.set_xticklabels([str(s) for s in steps], fontsize=7)
             ax.set_yticks([])
             ax.set_title(f"m/z={m0:.3f}\n{row.get('brutto','')}, n={n}",
-                         fontsize=7, color=THEME_FG)
+                         fontsize=7, color=FG)
             if missing:
                 ax.set_xlabel(f"⚠ пропуски: {missing}", fontsize=6,
-                              color=THEME_WARN)
+                              color=WARN)
 
         for j in range(i + 1, len(axes)):
             axes[j].set_visible(False)
 
         fig.suptitle(f"Серии {label}  (зелёный=найден, красный=пропущен)",
-                     color=THEME_ACCENT, fontsize=10)
+                     color=ACCENT, fontsize=10)
         fig.tight_layout()
         self._embed_figure(fig, self.series_canvas_frame)
 
@@ -676,7 +611,7 @@ class App(tk.Tk):
             vals = self.result_df[col].dropna().astype(int)
             if not vals.empty:
                 ax.hist(vals, bins=range(vals.max() + 2),
-                        color=color, alpha=0.85, edgecolor=THEME_BG, rwidth=0.7)
+                        color=color, alpha=0.85, edgecolor=BG, rwidth=0.7)
             ax.set_xlabel(col, fontsize=8)
             ax.set_ylabel("Кол-во", fontsize=8)
             ax.grid(True, alpha=0.3)
@@ -692,11 +627,11 @@ class App(tk.Tk):
         vals = self.result_df[col].dropna().astype(int)
         if vals.empty:
             ax.text(0.5, 0.5, "Нет данных", transform=ax.transAxes,
-                    ha="center", color=THEME_FG)
+                    ha="center", color=FG)
         else:
             ax.hist(vals, bins=range(vals.max() + 2),
-                    color=THEME_ACCENT, alpha=0.85,
-                    edgecolor=THEME_BG, rwidth=0.7)
+                    color=ACCENT, alpha=0.85,
+                    edgecolor=BG, rwidth=0.7)
         ax.set_xlabel(col)
         ax.set_ylabel("Количество соединений")
         ax.set_title(f"Распределение {col}")
@@ -704,21 +639,6 @@ class App(tk.Tk):
         fig.tight_layout()
         self._embed_figure(fig, self.series_canvas_frame)
 
-    # ── Утилиты встраивания Matplotlib ────────────────────────────────────────
-
-    def _embed_figure(self, fig, parent: ttk.Frame, toolbar: bool = True):
-        canvas = FigureCanvasTkAgg(fig, master=parent)
-        canvas.draw()
-        if toolbar:
-            tb = NavigationToolbar2Tk(canvas, parent, pack_toolbar=False)
-            tb.update()
-            tb.pack(side="bottom", fill="x")
-        canvas.get_tk_widget().pack(fill="both", expand=True)
-
-    def _clear_canvas(self, parent: ttk.Frame):
-        for widget in parent.winfo_children():
-            widget.destroy()
-        plt.close("all")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
