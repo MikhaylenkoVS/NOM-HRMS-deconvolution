@@ -1,6 +1,10 @@
 import pandas as pd
 import logging
 from nomspectra.spectrum import Spectrum
+import warnings
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
 
 # ---------------------------------------------------------------------------
 # Константы

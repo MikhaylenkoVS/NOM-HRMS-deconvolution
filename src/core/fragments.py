@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple
 from .atoms import Atom, Hybridization
+import numpy as np
 
 class MoleculeFragment:
     """Фрагмент молекулы с пронумерованными вершинами и внутренней структурой."""
