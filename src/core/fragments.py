@@ -450,10 +450,6 @@ class FragmentLibrary:
         """
         return FragmentLibrary.get_carbonyl().copy()
 
-
-
-
-
 # === АЦИКЛИЧЕСКИЕ ФРАГМЕНТЫ ===
 def create_methylene(): return MoleculeFragment('methylene', {'C': 1}, 0, ['C'], [], [0, 0])
 def create_ethylene(): return MoleculeFragment('ethylene', {'C': 2}, 0, ['C', 'C'], [(0, 1, 1)], [0, 1])

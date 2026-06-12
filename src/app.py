@@ -10,11 +10,9 @@ import threading
 import traceback
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
-from .ui.theme import (
-    BG, FG, ACCENT, PANEL, BTN,
-    OK, WARN, FONT, MONO,
-    _style, _mpl_style,
-)
+import structures
+import core
+import ui
 import pandas as pd
 import matplotlib
 matplotlib.use("TkAgg")

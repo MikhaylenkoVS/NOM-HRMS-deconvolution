@@ -8,7 +8,26 @@ from .fragments import (
     create_cooh,
     create_oh,
 )
-from .molecule import parse_formula, add_formula, filter_fragments
+from .molecule import parse_formula, add_formula
+
+def filter_fragments(target_heavy, target_ihd, fragment_library):
+    filtered = {}
+    for name, f in fragment_library.items():
+        hf = f["heavy_formula"]
+        ihd = f["ihd"]
+        # отсев по IHD
+        if ihd > target_ihd:
+            continue
+        # отсев по элементам
+        bad = False
+        for el, n in hf.items():
+            if el not in target_heavy or n > target_heavy[el]:
+                bad = True
+                break
+        if bad:
+            continue
+        filtered[name] = f
+    return filtered
 
 def find_fragment_combinations(target_heavy_formula, target_ihd,
                                num_cooh=0, num_oh=0,
@@ -106,6 +125,7 @@ def find_fragment_combinations(target_heavy_formula, target_ihd,
     backtrack(0, current_counts, {}, 0.0, 0)
 
     return results
+
 def assemble_molecule_from_combination(combination: dict,
                                        fragment_library_dict: dict = None) -> MoleculeFragment:
     """Собирает полную молекулу из комбинации фрагментов.
@@ -221,8 +241,6 @@ def assemble_all_combinations(combinations: list,
             })
 
     return molecules
-
-
 
 def find_and_visualize_molecules(brutto_formula: str,
                                  num_cooh: int = 0,

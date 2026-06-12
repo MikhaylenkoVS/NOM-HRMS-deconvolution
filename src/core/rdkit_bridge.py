@@ -1,3 +1,5 @@
+from molecule import MoleculeFragment, Molecule
+
 def to_rdkit_mol(fragment: MoleculeFragment):
     """Конвертирует MoleculeFragment в RDKit Mol объект."""
     from rdkit import Chem
