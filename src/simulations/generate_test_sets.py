@@ -23,10 +23,10 @@ import random
 
 
 # Корень подпроекта генератора: AnalyticsSpectra/Генерация тестовых спектров
-SUBPROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Базовые пути данных внутри подпроекта
-DATA_ROOT = SUBPROJECT_ROOT / "data"
+DATA_ROOT = PROJECT_ROOT / "data"
 TEST_SETS_ROOT = DATA_ROOT / "test_sets"
 
 # Моноизотопные массы основных элементов (можно расширять при необходимости)

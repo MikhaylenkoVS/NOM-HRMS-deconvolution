@@ -31,7 +31,7 @@
       "target_groups": [
         "OH"
       ],
-      "mass_shift_per_group": 48.0211,
+      "mass_shift_per_group": 45.02939,
       "label": "CD3CO",
       "conversion_yield": 1.0
     }
