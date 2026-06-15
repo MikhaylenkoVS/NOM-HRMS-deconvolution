@@ -515,19 +515,15 @@ def assign_formulas(
 
 def _find_peak(mz_array, target_mz, ppm_tol):
     """
-    Найти индекс ближайшего пика в отсортированном mz_array к target_mz.
+    Найти индекс ближайшего пика в mz_array к target_mz с точностью ppm_tol.
     Возвращает int или None.
     """
-    idx = np.searchsorted(mz_array, target_mz)
-    best = None
-    best_err = ppm_tol
-    for i in (idx - 1, idx):
-        if 0 <= i < len(mz_array):
-            err_ppm = abs(mz_array[i] - target_mz) / target_mz * 1e6
-            if err_ppm < best_err:
-                best_err = err_ppm
-                best = i
-    return best
+    mz = pd.Series(mz_array)
+    diffs_ppm = (mz - target_mz).abs() / target_mz * 1e6
+    matched = diffs_ppm[diffs_ppm <= ppm_tol]
+    if matched.empty:
+        return None
+    return int(matched.idxmin())
 
 
 def find_series(
@@ -581,6 +577,9 @@ def find_series(
         missing     — список пропущенных шагов ВНУТРИ серии
         series_mz   — список m/z для шагов 1..n_groups (None = пропуск)
     """
+    print("DEBUG _find_peak function:", _find_peak)
+    print("DEBUG delta:", delta, "ppm_tol:", ppm_tol)
+
     if ppm_tol <= 0:
         raise ValueError(f"ppm_tol должно быть > 0, получено {ppm_tol}")
     if max_groups < 1 or min_series_length < 1:
@@ -614,6 +613,8 @@ def find_series(
         for step in range(1, max_groups + 1):
             target = m0 + step * delta
             idx = _find_peak(mz_deriv, target, ppm_tol)
+            if step == 1:
+                print("TRY", m0, target, _find_peak(mz_deriv, target, ppm_tol))
 
             if idx is not None:
                 found_steps.append(step)
@@ -644,7 +645,13 @@ def find_series(
                 'series_mz':   trimmed,
             })
 
-    return pd.DataFrame(records)
+        if not found_steps:
+            continue
+
+    return pd.DataFrame(
+        records,
+        columns=['mass_src', 'brutto', 'n_groups', 'steps_found', 'missing', 'series_mz'],
+    )
 
 
 # ===========================================================================
