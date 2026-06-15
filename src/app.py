@@ -410,7 +410,7 @@ class App(tk.Tk):
             old_stdout = sys.stdout
             sys.stdout = io.StringIO()
 
-            result = run_pipeline(
+            result = run_pipel/ine(
                 src_path   = self.src_var.get(),
                 dmet_path  = self.dmet_var.get(),
                 dacet_path = self.dacet_var.get(),

@@ -6,6 +6,11 @@ DATA_ROOT = SUBPROJECT_ROOT / "data"
 TEST_SETS_ROOT = DATA_ROOT / "test_sets"
 
 
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+TEST_SETS_ROOT = PROJECT_ROOT / "data" / "test_sets"
+
 def _get_set_dir(set_id: str) -> Path:
     return TEST_SETS_ROOT / set_id
 
