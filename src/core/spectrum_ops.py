@@ -28,8 +28,7 @@ ATOMIC_MASS = {
     "H": 1.00782503223,
     "C": 12.0,
     "N": 14.00307400443,
-    "O": 15.99491461957,
-    "S": 31.9720711744,  # на будущее
+    "O": 15.99491461957
 }
 
 
@@ -73,6 +72,22 @@ def dbe_from_counts(counts: dict[str, int]) -> float:
     h = counts.get("H", 0)
     n = counts.get("N", 0)
     return 1 + c - h / 2.0 + n / 2.0
+
+def _row_to_brutto(row, element_order=None):
+    if element_order is None:
+        element_order = ["C", "H", "O", "N", "S", "P"]
+
+    parts = []
+    for el in element_order:
+        if el in row and pd.notna(row[el]):
+            val = row[el]
+            try:
+                val = int(val)
+            except Exception:
+                continue
+            if val > 0:
+                parts.append(el if val == 1 else f"{el}{val}")
+    return "".join(parts) if parts else None
 
 def load_spectrum(
     path,
@@ -384,6 +399,64 @@ def assign_formulas_simple(
 
 AssignMode = Literal["simple", "nomspectra"]
 
+
+def _row_to_brutto_from_elements(row, element_order=None):
+    if element_order is None:
+        element_order = ["C", "H", "O", "N", "S", "P"]
+
+    parts = []
+    for el in element_order:
+        if el not in row:
+            continue
+        val = row[el]
+        if pd.isna(val):
+            continue
+        try:
+            n = int(val)
+        except Exception:
+            continue
+        if n <= 0:
+            continue
+        parts.append(el if n == 1 else f"{el}{n}")
+
+    return "".join(parts) if parts else None
+
+
+def _ensure_brutto_from_element_columns(src):
+    """
+    Гарантирует, что после назначения формул в src.table есть:
+    - assign
+    - brutto
+
+    Если brutto отсутствует, но есть элементные столбцы (C, H, O, N, ...),
+    восстанавливает brutto из них. Все прочие столбцы сохраняются.
+    """
+    if not hasattr(src, "table"):
+        raise TypeError("Ожидается объект Spectrum с атрибутом .table")
+
+    df = src.table.copy()
+
+    if "assign" not in df.columns:
+        raise RuntimeError(
+            "После назначения формул в src.table отсутствует колонка 'assign'"
+        )
+
+    if "brutto" not in df.columns:
+        df["brutto"] = None
+
+    element_order = ["C", "H", "O", "N", "S", "P"]
+    element_cols = [c for c in element_order if c in df.columns]
+
+    if element_cols:
+        assigned_mask = df["assign"] == True
+        df.loc[assigned_mask, "brutto"] = df.loc[assigned_mask].apply(
+            lambda row: _row_to_brutto_from_elements(row, element_order=element_order),
+            axis=1,
+        )
+
+    src.table = df
+    return src
+
 def assign_formulas_nomspectra(
     src,
     *,
@@ -394,70 +467,58 @@ def assign_formulas_nomspectra(
     mass_max=None,
 ):
     """
-    Назначить брутто-формулы пикам исходного спектра.
+    Назначить брутто-формулы пикам исходного спектра через nomspectra.
 
-    После назначения добавляются столбцы:
-        brutto     — строковая формула (например 'C15H24O12')
-        calc_mass  — теоретическая масса
-
-    Параметры
-    ---------
-    src : Spectrum
-    brutto_dict : dict, optional
-        Элементы и диапазоны их количеств. По умолчанию DEFAULT_BRUTTO_DICT.
-    rel_error : float
-        Допустимая погрешность назначения (ppm). Типично 0.5 ppm для Orbitrap.
-    sign : {'-', '+', '0'}
-        Режим ионизации.
-    mass_min, mass_max : float, optional
-        Ограничение диапазона масс при назначении.
+    После назначения гарантируются столбцы:
+        assign     — булево назначение
+        brutto     — строковая формула (если её можно восстановить)
     """
     if rel_error < 0:
         rel_error = abs(rel_error)
         warnings.warn("Relative error is negative")
-    if mass_min is not None and mass_max is not None:
-        if mass_min > mass_max:
-            mass_min, mass_max = mass_max, mass_min
-            warnings.warn("Mass_max is less than mass_min")
 
-    if not isinstance(src, Spectrum): raise TypeError(f'Некорректный формат файла {src}')
+    if mass_min is not None and mass_max is not None and mass_min > mass_max:
+        mass_min, mass_max = mass_max, mass_min
+        warnings.warn("Mass_max is less than mass_min")
+
+    if not isinstance(src, Spectrum):
+        raise TypeError(f'Некорректный формат файла {src}')
+
     if brutto_dict is None:
         brutto_dict = DEFAULT_BRUTTO_DICT
     elif not isinstance(brutto_dict, dict):
         raise TypeError("brutto_dict должен быть dict с диапазонами по элементам")
+
     for el, bounds in brutto_dict.items():
         if not (isinstance(bounds, (tuple, list)) and len(bounds) == 2):
             raise ValueError(f"Для элемента {el!r} ожидается (min, max), получено {bounds!r}")
 
-    src = assign_formulas(
-        src,
-        mode="simple",
-        rel_error_ppm=1.0,
-        ion_mode="[M-H]-",
-        brutto_generation_mode="soft",  # или "nom_like" для боевого режима
+    src = src.assign(
+        brutto_dict=brutto_dict,
+        rel_error=rel_error,
+        sign=sign,
+        mass_min=mass_min,
+        mass_max=mass_max,
     )
 
-    if "assign" not in src.table.columns:
-        raise RuntimeError(
-            "После вызова src.assign в таблице src.table нет колонки 'assign'"
-        )
+    src = _ensure_brutto_from_element_columns(src)
 
     assign_col = src.table["assign"]
     if assign_col.dtype != bool:
-        raise TypeError(f"Ожидается булевый столбец 'assign', получен dtype={assign_col.dtype}")
+        try:
+            src.table["assign"] = src.table["assign"].astype(bool)
+            assign_col = src.table["assign"]
+        except Exception as e:
+            raise TypeError(
+                f"Ожидается булевый столбец 'assign', получен dtype={src.table['assign'].dtype}"
+            ) from e
 
     n_assigned = int(assign_col.sum())
-    if n_assigned > 0:
-        src = src.calc_mass()
-        src = src.brutto()
-    elif n_assigned == 0: warnings.warn("Ни одной брутто-формулы не назначено (assign == False для всех пиков)")
-    else:
-        if hasattr(src, "calc_mass"):
-            src.calc_mass()
-        if hasattr(src, "brutto"):
-            src.brutto()
+    if n_assigned == 0:
+        warnings.warn("Ни одной брутто-формулы не назначено (assign == False для всех пиков)")
 
     return src
+
 
 def assign_formulas(
     src,
@@ -473,6 +534,12 @@ def assign_formulas(
     ion_mode: str = "[M-H]-",
     **kwargs,
 ):
+    kwargs.pop("rel_error", None)
+    kwargs.pop("sign", None)
+    kwargs.pop("mass_min", None)
+    kwargs.pop("mass_max", None)
+    kwargs.pop("brutto_dict", None)
+
     if mode == "simple":
         return assign_formulas_simple(
             src,
@@ -487,18 +554,10 @@ def assign_formulas(
     if mode == "simple_from_molecules":
         if formulas is None:
             raise ValueError("Для mode='simple_from_molecules' нужно передать список formulas")
-            src,
-            formulas=formulas,
-            rel_error_ppm=rel_error_ppm,
-            mass_min=mass_min,
-            mass_max=mass_max,
-
+        raise NotImplementedError("mode='simple_from_molecules' пока не реализован")
 
     if mode == "nomspectra":
-        from nomspectra.spectrum import Spectrum  # или твоя обёртка
-
-        # предполагаю, что src — это уже Spectrum; если нет — адаптируй
-        return src.assign(
+        src = src.assign(
             brutto_dict=brutto_dict,
             rel_error=rel_error_ppm,
             sign=sign,
@@ -506,6 +565,8 @@ def assign_formulas(
             mass_max=mass_max,
             **kwargs,
         )
+        src = _ensure_brutto_from_element_columns(src)
+        return src
 
     raise ValueError(f"Неизвестный режим assign: {mode}")
 

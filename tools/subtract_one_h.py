@@ -1,5 +1,5 @@
 import re
-def _subtract_one_h(brutto: str) -> str:
+def subtract_one_h(brutto: str) -> str:
     """
     Временный костыль: уменьшить число H на 1 в строке формулы.
     Работает только для CHON-формул, где H явно указан.

@@ -2,7 +2,12 @@ from __future__ import annotations
 from .spectrum_ops import load_spectrum, denoise, find_series, DELTA_CD3, DELTA_CD3CO, assign_formulas, build_result_table, visualize_series
 import pandas as pd
 
-
+# TODO: синхронизировать mass_min/mass_max между приложением и тестами.
+#  В интеграционных тестах assign_formulas стабильно работает только при
+#  явном mass_min=0, mass_max=1000. Нужно:
+#    - либо делать такие границы дефолтными для режима simple,
+#    - либо прокидывать настройки из единого конфигурационного места,
+#      чтобы поведение пайплайна и тестов не расходилось.
 def run_pipeline(
     src_path,
     dmet_path,
@@ -103,6 +108,11 @@ def run_pipeline(
     print('=' * 60)
     print('ШАГ 3: Серии дейтерометилирования (-> N_COOH)')
     print('=' * 60)
+
+    print("DEBUG after assign_formulas")
+    print("type(src):", type(src))
+    print("src columns:", list(src.table.columns))
+    print(src.table[["mass"] + [c for c in ["assign", "brutto"] if c in src.table.columns]].head())
     df_dmet = find_series(src, dmet, delta=DELTA_CD3,
                           ppm_tol=ppm_tol, max_groups=max_groups, allow_gaps=allow_gaps)
     print(f"  Соединений с сериями CD3: {len(df_dmet)}")

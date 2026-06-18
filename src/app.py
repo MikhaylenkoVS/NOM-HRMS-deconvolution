@@ -5,6 +5,7 @@ app.py  —  GUI-интерфейс для пайплайна определен
 """
 
 import os
+import io
 import sys
 import threading
 import traceback
@@ -12,15 +13,32 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import pandas as pd
 import matplotlib
-
-from src.ui import embed_figure, clear_canvas
-
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from src.core import *
-from src.ui import *
-from src.structures import *
+from src.ui.plots import embed_figure, clear_canvas
+from src.ui.theme import (
+BG,
+ACCENT,
+PANEL,
+WARN,
+FG,
+OK,
+MONO,
+_mpl_style,
+_style,
+IMG_H,
+IMG_W
+)
+from src.structures.tab import StructureViewerTab
+from src.core import (
+    run_pipeline,
+    load_spectrum,
+    find_series,
+    visualize_series,
+    DELTA_CD3,
+    DELTA_CD3CO,
+)
 # ── Импорт пайплайна из core.py ──────────────────────────────────────────────
 try:
     from core import (
@@ -35,6 +53,19 @@ try:
 except Exception as _core_err:
     CORE_LOADED = False
     _CORE_ERROR = str(_core_err)
+
+class Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+            s.flush()
+
+    def flush(self):
+        for s in self.streams:
+            s.flush()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ГЛАВНОЕ ОКНО
@@ -79,14 +110,70 @@ class App(tk.Tk):
         self.o_min = tk.StringVar(value="0");  self.o_max = tk.StringVar(value="25")
         self.n_min = tk.StringVar(value="0");  self.n_max = tk.StringVar(value="2")
 
-        self.clear_canvas = clear_canvas
-        self.embed_figure = embed_figure
-
         self._build_ui()
 
         if not CORE_LOADED:
             self._log(f"[ОШИБКА] Не удалось импортировать core.py:\n{_CORE_ERROR}",
                       color=WARN)
+
+    def _set_status(self, msg: str):
+        self.status_var.set(msg)
+        self.update_idletasks()
+
+    def _log(self, msg: str, color: str = FG):
+        if color == OK:
+            tag = "ok"
+        elif color == WARN:
+            tag = "warn"
+        else:
+            tag = "info"
+
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", msg + "\n", tag)
+        self.log_text.see("end")
+        self.log_text.configure(state="disabled")
+
+    def _append_log(self, text: str):
+        if not hasattr(self, "log_text") or self.log_text is None:
+            return
+
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", text)
+        self.log_text.see("end")
+        self.log_text.configure(state="disabled")
+
+    def _clear_log(self):
+        self.log_text.configure(state="normal")
+        self.log_text.delete("1.0", "end")
+        self.log_text.configure(state="disabled")
+
+    def _set_status(self, msg: str):
+        self.status_var.set(msg)
+        self.update_idletasks()
+
+    def _clear_frame(self, parent):
+        for child in parent.winfo_children():
+            child.destroy()
+
+    def _on_run_success(self, log_text: str):
+        self.progress.stop()
+        self._set_status(f"Готово. Найдено {len(self.result_df)} соединений.")
+        if log_text.strip():
+            self._append_log(log_text)
+            if not log_text.endswith("\n"):
+                self._append_log("\n")
+        self._log("✅ Анализ завершён успешно.", color=OK)
+        self._fill_result_table(self.result_df)
+        self._auto_plot_hist()
+
+    def _on_run_error(self, tb: str):
+        self.progress.stop()
+        self._set_status("Ошибка! Смотри лог.")
+        if tb.strip():
+            self._append_log(tb)
+            if not tb.endswith("\n"):
+                self._append_log("\n")
+        messagebox.showerror("Ошибка выполнения", tb[:1000])
 
     # ── ПОСТРОЕНИЕ ИНТЕРФЕЙСА ─────────────────────────────────────────────────
 
@@ -253,7 +340,7 @@ class App(tk.Tk):
         ttk.Button(ctrl, text="📈 Построить спектры",
                    command=self._plot_spectra).pack(side="left", padx=4)
         ttk.Button(ctrl, text="🗑 Очистить",
-                   command=lambda: self.clear_canvas(self.spectra_canvas_frame)).pack(
+                   command=lambda: self._clear_frame(self.spectra_canvas_frame)).pack(
             side="left", padx=4)
 
         self.spectra_canvas_frame = ttk.Frame(frame)
@@ -271,7 +358,7 @@ class App(tk.Tk):
         ttk.Button(ctrl, text="🔗 Показать серии CD₃CO",
                    command=lambda: self._plot_series("dacet")).pack(side="left", padx=4)
         ttk.Button(ctrl, text="🗑 Очистить",
-                   command=lambda: self.clear_canvas(self.series_canvas_frame)).pack(
+                   command=lambda: self._clear_frame(self.series_canvas_frame)).pack(
             side="left", padx=4)
 
         self.series_canvas_frame = ttk.Frame(frame)
@@ -323,18 +410,23 @@ class App(tk.Tk):
 
     # ── ВКЛАДКА ЛОГ ──────────────────────────────────────────────────────────
 
+    def _clear_log(self):
+        self.log_text.configure(state="normal")
+        self.log_text.delete("1.0", "end")
+        self.log_text.configure(state="disabled")
+
     def _build_log_tab(self):
         frame = self.tab_log
         ctrl = ttk.Frame(frame)
         ctrl.pack(fill="x", pady=4, padx=8)
         ttk.Button(ctrl, text="🗑 Очистить лог",
                    command=self._clear_log).pack(side="left", padx=4)
-
         self.log_text = scrolledtext.ScrolledText(
             frame, bg=PANEL, fg=FG,
             font=MONO, relief="flat",
             insertbackground=FG
         )
+        self.log_text.configure(state="disabled")
         self.log_text.pack(fill="both", expand=True, padx=8, pady=4)
         self.log_text.tag_config("ok",   foreground=OK)
         self.log_text.tag_config("warn", foreground=WARN)
@@ -361,16 +453,17 @@ class App(tk.Tk):
             var.set(path)
 
     def _log(self, msg: str, color: str = FG):
-        tag = "ok" if color == OK else ("warn" if color == WARN else "info")
+        if color == OK:
+            tag = "ok"
+        elif color == WARN:
+            tag = "warn"
+        else:
+            tag = "info"
+
+        self.log_text.configure(state="normal")
         self.log_text.insert("end", msg + "\n", tag)
         self.log_text.see("end")
-
-    def _clear_log(self):
-        self.log_text.delete("1.0", "end")
-
-    def _set_status(self, msg: str):
-        self.status_var.set(msg)
-        self.update_idletasks()
+        self.log_text.configure(state="disabled")
 
     # ── Запуск пайплайна в отдельном потоке ──────────────────────────────────
 
@@ -392,69 +485,35 @@ class App(tk.Tk):
         t.start()
 
     def _run_worker(self):
+        old_stdout = sys.stdout
+        buffer = io.StringIO()
+        sys.stdout = Tee(old_stdout, buffer)
+
         try:
-            # Сепаратор
-            sep = self.sep_var.get()
-            if sep in ("\\t", "tab", "TAB"):
-                sep = "\t"
-
-            brutto_dict = {
-                'C': (int(self.c_min.get()), int(self.c_max.get())),
-                'H': (int(self.h_min.get()), int(self.h_max.get())),
-                'O': (int(self.o_min.get()), int(self.o_max.get())),
-                'N': (int(self.n_min.get()), int(self.n_max.get())),
-            }
-
-            # Перехват вывода в лог
-            import io
-            old_stdout = sys.stdout
-            sys.stdout = io.StringIO()
-
-            result = run_pipel/ine(
-                src_path   = self.src_var.get(),
-                dmet_path  = self.dmet_var.get(),
-                dacet_path = self.dacet_var.get(),
-                sep        = sep,
-                mass_min   = float(self.mass_min_var.get()),
-                mass_max   = float(self.mass_max_var.get()),
-                noise_force = float(self.noise_var.get()),
-                brutto_dict = brutto_dict,
-                rel_error   = float(self.rel_error_var.get()),
-                sign        = self.sign_var.get(),
-                ppm_tol     = float(self.ppm_tol_var.get()),
-                max_groups  = int(self.max_groups_var.get()),
-                allow_gaps  = self.allow_gaps_var.get(),
-                visualize   = False,
-                save_dmet=None,
-                save_dacet=None,
-                output_csv  = self.output_csv_var.get() or None,
+            result = run_pipeline(
+                src_path=self.src_var.get(),
+                dmet_path=self.dmet_var.get(),
+                dacet_path=self.dacet_var.get(),
+                rel_error=float(self.rel_error_var.get()),
+                ppm_tol=float(self.ppm_tol_var.get()),
+                max_groups=int(self.max_groups_var.get()),
+                allow_gaps=self.allow_gaps_var.get(),
+                output_csv=self.output_csv_var.get() or None,
             )
 
-            captured = sys.stdout.getvalue()
-            sys.stdout = old_stdout
-
+            captured = buffer.getvalue()
             self.result_df = result
-            self.after(0, lambda: self._on_run_success(captured))
+            self.after(0, lambda text=captured: self._on_run_success(text))
 
-        except Exception as e:
-            sys.stdout = old_stdout if 'old_stdout' in dir() else sys.stdout
+        except Exception:
+            captured = buffer.getvalue()
+            import traceback
             tb = traceback.format_exc()
-            self.after(0, lambda: self._on_run_error(tb))
+            full_text = captured + "\n" + tb if captured else tb
+            self.after(0, lambda text=full_text: self._on_run_error(text))
 
-    def _on_run_success(self, log_text: str):
-        self.progress.stop()
-        self._set_status(f"Готово. Найдено {len(self.result_df)} соединений.")
-        self._log(log_text, color=FG)
-        self._log("✅ Анализ завершён успешно.", color=OK)
-        self._fill_result_table(self.result_df)
-        self._auto_plot_hist()
-
-    def _on_run_error(self, tb: str):
-        self.progress.stop()
-        self._set_status("Ошибка! Смотри лог.")
-        self._log(tb, color=WARN)
-        messagebox.showerror("Ошибка выполнения", tb[:400])
-
+        finally:
+            sys.stdout = old_stdout
     # ── Таблица результатов ───────────────────────────────────────────────────
 
     def _fill_result_table(self, df: pd.DataFrame):
@@ -525,7 +584,7 @@ class App(tk.Tk):
             messagebox.showerror("Ошибка чтения", str(e))
             return
 
-        self.clear_canvas(self.spectra_canvas_frame)
+        self._clear_frame(self.spectra_canvas_frame)
 
         fig, axes = plt.subplots(3, 1, figsize=(9, 7), sharex=True)
         colors = [ACCENT, "#a6e3a1", "#fab387"]
@@ -539,7 +598,7 @@ class App(tk.Tk):
         fig.suptitle("Три масс-спектра", color=ACCENT, fontsize=11)
         fig.tight_layout()
 
-        self.embed_figure(fig, self.spectra_canvas_frame)
+        embed_figure(self, fig, self.spectra_canvas_frame)
 
     # ── Графики серий ─────────────────────────────────────────────────────────
 
@@ -562,7 +621,7 @@ class App(tk.Tk):
         ncols = 3
         nrows = (n_plots + ncols - 1) // ncols
 
-        self.clear_canvas(self.series_canvas_frame)
+        self._clear_frame(self.series_canvas_frame)
         fig, axes = plt.subplots(nrows, ncols,
                                  figsize=(9, nrows * 2.8))
         axes = axes.flatten() if hasattr(axes, "flatten") else [axes]
@@ -599,14 +658,14 @@ class App(tk.Tk):
         fig.suptitle(f"Серии {label}  (зелёный=найден, красный=пропущен)",
                      color=ACCENT, fontsize=10)
         fig.tight_layout()
-        self.embed_figure(fig, self.series_canvas_frame)
+        embed_figure(self, fig, self.series_canvas_frame)
 
     # ── Гистограммы ───────────────────────────────────────────────────────────
 
     def _auto_plot_hist(self):
         if self.result_df is None:
             return
-        self.clear_canvas(self.hist_frame)
+        self._clear_frame(self.hist_frame)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 2.5))
         for ax, col, color in [(ax1, "N_COOH", "#f38ba8"),
                                (ax2, "N_OH", "#a6e3a1")]:
@@ -618,13 +677,13 @@ class App(tk.Tk):
             ax.set_ylabel("Кол-во", fontsize=8)
             ax.grid(True, alpha=0.3)
         fig.tight_layout()
-        self.embed_figure(fig, self.hist_frame, toolbar=False)
+        embed_figure(self, fig, self.hist_frame, toolbar=False)
 
     def _plot_hist(self, col: str):
         if self.result_df is None:
             messagebox.showinfo("Нет данных", "Сначала запустите анализ.")
             return
-        self.clear_canvas(self.series_canvas_frame)
+        self._clear_frame(self.series_canvas_frame)
         fig, ax = plt.subplots(figsize=(7, 4))
         vals = self.result_df[col].dropna().astype(int)
         if vals.empty:
@@ -639,7 +698,7 @@ class App(tk.Tk):
         ax.set_title(f"Распределение {col}")
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
-        self.embed_figure(fig, self.series_canvas_frame)
+        embed_figure(self, fig, self.series_canvas_frame)
 
 
 
