@@ -638,8 +638,6 @@ def find_series(
         missing     — список пропущенных шагов ВНУТРИ серии
         series_mz   — список m/z для шагов 1..n_groups (None = пропуск)
     """
-    print("DEBUG _find_peak function:", _find_peak)
-    print("DEBUG delta:", delta, "ppm_tol:", ppm_tol)
 
     if ppm_tol <= 0:
         raise ValueError(f"ppm_tol должно быть > 0, получено {ppm_tol}")
@@ -674,8 +672,6 @@ def find_series(
         for step in range(1, max_groups + 1):
             target = m0 + step * delta
             idx = _find_peak(mz_deriv, target, ppm_tol)
-            if step == 1:
-                print("TRY", m0, target, _find_peak(mz_deriv, target, ppm_tol))
 
             if idx is not None:
                 found_steps.append(step)
@@ -769,13 +765,6 @@ def build_result_table(src, df_dmet, df_dacet):
     result['N_COOH']     = result['n_dmet']
     result['N_OH_total'] = result['n_dacet']
     result['N_OH'] = result['n_dacet']
-
-    impossible = result[result['N_OH_total'] < result['N_COOH']]
-    if not impossible.empty:
-        warnings.warn(
-            f"{len(impossible)} пик(ов): N_OH_total < N_COOH. "
-            "Возможна ошибка назначения серий или частичная дериватизация."
-        )
 
     return result[[
         'mass', 'intensity', 'brutto',
