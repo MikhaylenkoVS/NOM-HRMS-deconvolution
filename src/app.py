@@ -9,12 +9,12 @@ import ast
 import io
 import os
 import queue
-import sys
 import threading
 import traceback
 import warnings
 from pathlib import Path
 from typing import Optional
+from rdkit import *
 
 import matplotlib
 matplotlib.use("TkAgg")
@@ -28,7 +28,7 @@ try:
     from src.ui.plots import embed_figure
     from src.ui.theme import (
         ACCENT, BG, FG, IMG_H, IMG_W, MONO, OK, PANEL, WARN,
-        _mpl_style, _style,
+        _mpl_style, _style
     )
     from src.structures.tab import StructureViewerTab
     _UI_LOADED = True
@@ -112,7 +112,7 @@ class _QueueWriter:
                 pass
 
     def fileno(self):
-        if self._orig:
+        if self._orig and hasattr(self._orig, 'fileno'):
             return self._orig.fileno()
         raise io.UnsupportedOperation("fileno")
 
@@ -786,7 +786,7 @@ class App(tk.Tk):
             axes[-1].set_xlabel("m/z", fontsize=9)
             fig.suptitle("Три масс-спектра", color=ACCENT, fontsize=11)
             fig.tight_layout()
-            embed_figure(self, fig, self.spectra_canvas_frame)
+            embed_figure(fig, self.spectra_canvas_frame)
             self._log("[DEBUG] _plot_spectra: успешно", color=OK)
         except Exception:
             self._log(f"[ОШИБКА] _plot_spectра: {traceback.format_exc()}", color=WARN)
@@ -867,7 +867,7 @@ class App(tk.Tk):
             fig.suptitle(f"Серии {label}  (зелёный=найден, красный=пропущен)",
                          color=ACCENT, fontsize=10)
             fig.tight_layout()
-            embed_figure(self, fig, self.series_canvas_frame)
+            embed_figure(fig, self.series_canvas_frame)
             self._log(f"[DEBUG] _plot_series: {n_plots} графиков построено", color=OK)
         except Exception:
             self._log(f"[ОШИБКА] _plot_series: {traceback.format_exc()}", color=WARN)
@@ -895,7 +895,7 @@ class App(tk.Tk):
                 ax.set_ylabel("Кол-во", fontsize=8)
                 ax.grid(True, alpha=0.3)
             fig.tight_layout()
-            embed_figure(self, fig, self.hist_frame, toolbar=False)
+            embed_figure( fig, self.hist_frame, toolbar=False)
         except Exception:
             self._log(f"[ОШИБКА] _auto_plot_hist: {traceback.format_exc()}", color=WARN)
             plt.close("all")
@@ -924,7 +924,7 @@ class App(tk.Tk):
             ax.set_title(f"Распределение {col}")
             ax.grid(True, alpha=0.3)
             fig.tight_layout()
-            embed_figure(self, fig, self.series_canvas_frame)
+            embed_figure( fig, self.series_canvas_frame)
         except Exception:
             self._log(f"[ОШИБКА] _plot_hist({col}): {traceback.format_exc()}", color=WARN)
             plt.close("all")

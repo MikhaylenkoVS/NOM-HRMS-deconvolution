@@ -1,5 +1,4 @@
 # core/fragment_combinations.py
-from typing import Dict, List
 from .fragments import (
     MoleculeFragment,
     FRAGMENT_LIBRARY,
@@ -8,6 +7,8 @@ from .fragments import (
     create_cooh,
     create_oh,
 )
+from rdkit import Chem
+from rdkit.Chem import Draw, AllChem
 from .molecule import parse_formula, add_formula
 
 def filter_fragments(target_heavy, target_ihd, fragment_library):
@@ -168,6 +169,7 @@ def assemble_molecule_from_combination(combination: dict,
         raise ValueError("Комбинация не содержит фрагментов")
 
     # === ШАГ 2: Последовательно соединяем базовые фрагменты ===
+    current = []
     if base_fragments:
         current = base_fragments[0]
 
@@ -181,10 +183,15 @@ def assemble_molecule_from_combination(combination: dict,
 
             # Соединяем через первые доступные точки
             current = current.connect_to(next_frag, my_points[0], other_points[0], bond_order=1)
-    else:
-        # Если нет базовых фрагментов, начинаем с первой COOH группы
-        current = create_cooh()
-        num_cooh -= 1
+    if not base_fragments:
+        if num_cooh > 0:
+            current = create_cooh()
+            num_cooh -= 1
+        elif num_oh > 0:
+            current = create_oh()
+            num_oh -= 1
+        else:
+            raise ValueError("Combination contains no fragments to start with.")
 
     # === ШАГ 3: Добавляем COOH группы ===
     for i in range(num_cooh):
@@ -283,6 +290,7 @@ def find_and_visualize_molecules(brutto_formula: str,
 
     # === ШАГ 2: Вычисление тяжёлой формулы и IHD ===
     full_formula = parse_formula(brutto_formula)
+    X = full_formula.get('F', 0) + full_formula.get('Cl', 0) + full_formula.get('Br', 0) + full_formula.get('I', 0)
 
     # Убираем водороды для тяжёлой формулы
     heavy_formula = {k: v for k, v in full_formula.items() if k != 'H'}
@@ -292,7 +300,7 @@ def find_and_visualize_molecules(brutto_formula: str,
     H = full_formula.get('H', 0)
     N = full_formula.get('N', 0)
 
-    ihd = (2 * C + 2 - H + N) / 2
+    ihd = (2 * C + 2 - H + N - X) / 2
 
     print(f"📋 Исходные данные:")
     print(f"   Брутто-формула: {brutto_formula}")
@@ -362,9 +370,6 @@ def find_and_visualize_molecules(brutto_formula: str,
     if show_images:
         print("\n🎨 Визуализация структур...")
         try:
-            from rdkit import Chem
-            from rdkit.Chem import Draw, AllChem
-
             for mol_data in molecules_data:
                 mol_obj = mol_data['fragment_object']
 

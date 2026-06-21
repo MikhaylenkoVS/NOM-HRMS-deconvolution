@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Dict
+from typing import List
 
 ELEMENT_DATA = {
     'H': {'atomic_number': 1, 'valence': 1},
@@ -13,11 +13,6 @@ ELEMENT_DATA = {
     'Br': {'atomic_number': 35, 'valence': 1},
     'I': {'atomic_number': 53, 'valence': 1},
 }
-
-def calculate_formal_charge(symbol: str, valence_electrons: int,
-                           bonds: int, lone_pairs: int) -> int:
-    """Вычисление формального заряда атома"""
-    return valence_electrons - bonds - 2 * lone_pairs
 
 class Hybridization(Enum):
     """Типы гибридизации атома"""
@@ -52,10 +47,10 @@ class Atom:
         self.is_aromatic = False
 
     def add_bond(self, atom_number: int, bond_order: int = 1) -> bool:
-        """Добавить связь с другим атомом"""
+        if atom_number in self.connections:
+            return False  # bond already exists
         if self.used_valence + bond_order > self.valence:
             return False
-
         self.connections.append(atom_number)
         self.bond_orders.append(bond_order)
         self.used_valence += bond_order

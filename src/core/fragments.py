@@ -1,36 +1,38 @@
+from collections import defaultdict
 from typing import Dict, List, Tuple
-from .atoms import Atom, Hybridization
 import numpy as np
+
 
 class MoleculeFragment:
     """Фрагмент молекулы с пронумерованными вершинами и внутренней структурой."""
 
-    def __init__(self, name: str, heavy_formula: Dict[str, int], ihd: float,
-                 atoms: List[str], bonds: List[Tuple[int, int, int]],
-                 attachment_points: List[int]):
+    def __init__(self, name, heavy_formula, ihd, atoms, bonds, attachment_points):
         self.name = name
         self.heavy_formula = heavy_formula
         self.ihd = ihd
         self.atoms = atoms
         self.bonds = bonds
-        self.attachment_points = attachment_points.copy()
+        # Convert list of attachment points to a counts dictionary
+        self.attachment_counts = {}
+        for idx in attachment_points:
+            self.attachment_counts[idx] = self.attachment_counts.get(idx, 0) + 1
         self.adjacency = self._build_adjacency()
 
     def _build_adjacency(self) -> Dict[int, List[Tuple[int, int]]]:
-        adj = dict(list)
+        adj = defaultdict(list)
         for i, j, order in self.bonds:
             adj[i].append((j, order))
             adj[j].append((i, order))
-        return dict(adj)
+        return dict(adj)  # or simply return adj if a defaultdict is acceptable
 
     def get_num_atoms(self) -> int:
         return len(self.atoms)
 
     def get_free_attachment_points(self) -> List[int]:
-        return self.attachment_points.copy()
+        return [idx for idx, cnt in self.attachment_counts.items() for _ in range(cnt)]
 
     def has_free_attachment_point(self, idx: int) -> bool:
-        return idx in self.attachment_points
+        return self.attachment_counts.get(idx, 0) > 0
 
     def connect_to(self, other: 'MoleculeFragment',
                    my_point: int, other_point: int,
@@ -40,28 +42,49 @@ class MoleculeFragment:
         if not other.has_free_attachment_point(other_point):
             raise ValueError(f"Точка {other_point} в {other.name} уже занята")
 
+        # Имя и суммарная формула
         new_name = f"{self.name}+{other.name}"
         new_heavy = self.heavy_formula.copy()
         for el, count in other.heavy_formula.items():
             new_heavy[el] = new_heavy.get(el, 0) + count
 
         new_ihd = self.ihd + other.ihd
-        offset = len(self.atoms)
-        new_atoms = self.atoms.copy()
-        new_atoms.extend(other.atoms)
 
+        # Атомы
+        offset = len(self.atoms)
+        new_atoms = self.atoms + other.atoms
+
+        # Связи
         new_bonds = self.bonds.copy()
         for i, j, order in other.bonds:
             new_bonds.append((i + offset, j + offset, order))
         new_bonds.append((my_point, other_point + offset, bond_order))
 
-        new_attachment_points = []
-        for pt in self.attachment_points:
-            if pt != my_point:
-                new_attachment_points.append(pt)
-        for pt in other.attachment_points:
-            if pt != other_point:
-                new_attachment_points.append(pt + offset)
+        # --- Слияние точек присоединения ---
+        # Копируем и уменьшаем self
+        counts = dict(self.attachment_counts)
+        if my_point in counts:
+            counts[my_point] -= 1
+            if counts[my_point] == 0:
+                del counts[my_point]
+
+        # Копируем и уменьшаем other (со сдвигом)
+        other_counts = {k + offset: v for k, v in other.attachment_counts.items()}
+        shifted_other_point = other_point + offset
+        if shifted_other_point in other_counts:
+            other_counts[shifted_other_point] -= 1
+            if other_counts[shifted_other_point] == 0:
+                del other_counts[shifted_other_point]
+
+        # Сливаем два словаря
+        merged = counts.copy()
+        for k, v in other_counts.items():
+            merged[k] = merged.get(k, 0) + v
+
+        # Преобразуем обратно в список для конструктора
+        new_attachment_points = [
+            idx for idx, cnt in merged.items() for _ in range(cnt)
+        ]
 
         return MoleculeFragment(
             name=new_name,
@@ -160,295 +183,6 @@ FUNCTIONAL_GROUPS = {    'cooh': {'heavy_formula': {'C': 1, 'O': 2}, 'ihd': 1, '
      'cl': {'heavy_formula': {'Cl': 1}, 'ihd': 0, 'description': 'Хлор'},
      'br': {'heavy_formula': {'Br': 1}, 'ihd': 0, 'description': 'Бром'},
      'i': {'heavy_formula': {'I': 1}, 'ihd': 0, 'description': 'Йод'},}
-
-class FragmentLibrary:
-    """Расширенная библиотека молекулярных фрагментов CHNO.
-
-    Каждый метод возвращает матрицу смежности (numpy.ndarray) для фрагмента.
-    Матрица задается в терминах тяжёлых атомов (C, N, O), без явных водородов.
-    Валентность и число H должны достраиваться алгоритмом генератора, как в основной версии.
-    """
-
-    # === УЖЕ ИСПОЛЬЗУЕМЫЕ В ОСНОВНОЙ ВЕРСИИ ФРАГМЕНТЫ ===
-
-    @staticmethod
-    def get_benzene():
-        """Бензол C6 (ароматическое кольцо).
-
-        Атомы: C0–C5, связи: чередующиеся одинарные/двойные.
-        """
-        return np.array([
-            [0, 2, 0, 0, 0, 1],
-            [2, 0, 1, 0, 0, 0],
-            [0, 1, 0, 2, 0, 0],
-            [0, 0, 2, 0, 1, 0],
-            [0, 0, 0, 1, 0, 2],
-            [1, 0, 0, 0, 2, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_naphthalene():
-        """Нафталин C10 (два конденсированных бензольных кольца)."""
-        return np.array([
-            [0, 2, 0, 0, 0, 1, 0, 0, 0, 0],
-            [2, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-            [0, 1, 0, 2, 0, 0, 0, 0, 0, 0],
-            [0, 0, 2, 0, 1, 0, 0, 0, 1, 0],
-            [0, 0, 0, 1, 0, 2, 0, 0, 0, 1],
-            [1, 0, 0, 0, 2, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 2, 1, 0],
-            [0, 0, 0, 0, 0, 0, 2, 0, 0, 1],
-            [0, 0, 0, 1, 0, 0, 1, 0, 0, 2],
-            [0, 0, 0, 0, 1, 0, 0, 1, 2, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_anthracene():
-        """Антрацен C14 (три конденсированных бензольных кольца, ИСПРАВЛЕНО)."""
-        return np.array([
-            [0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-            [2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 2, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0],
-            [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 1, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_cooh_group():
-        """Карбоксильная группа –COOH, без указания внешнего атома C-скелета.
-
-        Атомы: C0, O1(=O), O2(–OH). Внешний C-скелет должен связываться с C0.
-        """
-        return np.array([
-            [0, 2, 1],
-            [2, 0, 0],
-            [1, 0, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_oh_group():
-        """Гидроксильная группа –OH, представлена только атомом O.
-
-        Внешний атом (обычно C) связывается с этим O, водород достраивается отдельно.
-        """
-        return np.array([[0]], dtype=int)
-
-    # === НОВЫЕ ФРАГМЕНТЫ CHNO ===
-
-    # 1) Простые ациклические углеродные фрагменты (только C, без H)
-
-    @staticmethod
-    def get_methylene():
-        """Фрагмент –CH2– как вершина C с двумя свободными связями.
-
-        Матрица 1×1 с нулем: связи к цепи задаются снаружи.
-        """
-        return np.array([[0]], dtype=int)
-
-    @staticmethod
-    def get_ethylene_fragment():
-        """Фрагмент –CH2–CH2– : два углерода с одинарной связью.
-        Валентность каждого C: 4, одинарная связь между ними.
-        Остальные связи заполняются H или другими фрагментами.
-        """
-        return np.array([
-            [0, 1],
-            [1, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_alkene_fragment():
-        """Фрагмент –CH=CH– : два углерода с двойной связью.
-        """
-        return np.array([
-            [0, 2],
-            [2, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_alkyne_fragment():
-        """Фрагмент –C#C– : два углерода с тройной связью.
-        """
-        return np.array([
-            [0, 3],
-            [3, 0]
-        ], dtype=int)
-
-    # 2) Карбонильные фрагменты C=O
-
-    @staticmethod
-    def get_carbonyl():
-        """Фрагмент –C(=O)– : кетонный/альдегидный карбонил без H.
-
-        Атомы: C0, O1. Внешние связи: C0 должен связываться с двумя соседями
-        (для кетона) или с одним соседом и H (для альдегида).
-        """
-        return np.array([
-            [0, 2],
-            [2, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_ester_core():
-        """Фрагмент сложноэфирного ядра –CO–O– (без внешних C).
-
-        Атомы: C0, O1(=O), O2(эфирный). Внешние связи: C0 и O2.
-        """
-        return np.array([
-            [0, 2, 1],
-            [2, 0, 0],
-            [1, 0, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_ether_oxygen():
-        """Эфирный атом кислорода –O– как отдельный узел.
-
-        Все связи к нему (два C) задаются снаружи.
-        """
-        return np.array([[0]], dtype=int)
-
-    # 3) Аминные и амидные фрагменты
-
-    @staticmethod
-    def get_primary_amine_core():
-        """Фрагмент –NH2 как узел N (водороды неявные).
-
-        Матрица 1×1, связи к C задаются при сборке.
-        """
-        return np.array([[0]], dtype=int)
-
-    @staticmethod
-    def get_secondary_amine_core():
-        """Фрагмент –NH– : N с двумя связями к C и одним H.
-        Представлен как одиночный N, связи к C снаружи.
-        """
-        return np.array([[0]], dtype=int)
-
-    @staticmethod
-    def get_tertiary_amine_core():
-        """Фрагмент –N< : третичный аминный центр.
-        Три связи к C устанавливаются в алгоритме сборки.
-        """
-        return np.array([[0]], dtype=int)
-
-    @staticmethod
-    def get_amide_core():
-        """Амидное ядро –CONH– (C–O–N).
-
-        Атомы: C0, O1, N2. Связи: C0=O1, C0–N2.
-        Внешние связи: C0 к углеродному скелету, N2 к одному C (или двум для N-замещённых амидов).
-        """
-        return np.array([
-            [0, 2, 1],
-            [2, 0, 0],
-            [1, 0, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_nitrile():
-        """Фрагмент –C#N (нитрил).
-
-        Атомы: C0, N1, связь тройная. C0 связывается с углеродным скелетом.
-        """
-        return np.array([
-            [0, 3],
-            [3, 0]
-        ], dtype=int)
-
-    # 4) Простые гетероциклы (только тяжёлые атомы, H неявные)
-
-    @staticmethod
-    def get_pyridine():
-        """Пиридин: 6-членное ароматическое кольцо C5N1.
-
-        Нумерация: N0, C1–C5 по кольцу.
-        Связи: как бензол, но один C заменён на N.
-        """
-        return np.array([
-            [0, 2, 0, 0, 0, 1],  # N0
-            [2, 0, 1, 0, 0, 0],
-            [0, 1, 0, 2, 0, 0],
-            [0, 0, 2, 0, 1, 0],
-            [0, 0, 0, 1, 0, 2],
-            [1, 0, 0, 0, 2, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_pyrimidine():
-        """Пиримидин: 6-членное ароматическое кольцо C4N2.
-
-        Нумерация: N0, C1, N2, C3, C4, C5 по кольцу.
-        Матрица по типу пиридина, но с двумя N.
-        """
-        return np.array([
-            [0, 2, 0, 0, 0, 1],  # N0
-            [2, 0, 1, 0, 0, 0],  # C1
-            [0, 1, 0, 2, 0, 0],  # N2
-            [0, 0, 2, 0, 1, 0],  # C3
-            [0, 0, 0, 1, 0, 2],  # C4
-            [1, 0, 0, 0, 2, 0]   # C5
-        ], dtype=int)
-
-    @staticmethod
-    def get_pyrrole():
-        """Пиррол: 5-членный ароматический цикл C4N1 (N с одним H, H неявный).
-
-        Нумерация: N0, C1, C2, C3, C4 по кольцу.
-        Связи: чередование 2/1 как в ароматическом 5-членном кольце.
-        """
-        return np.array([
-            [0, 1, 0, 0, 2],  # N0
-            [1, 0, 2, 0, 0],
-            [0, 2, 0, 1, 0],
-            [0, 0, 1, 0, 2],
-            [2, 0, 0, 2, 0]
-        ], dtype=int)
-
-    @staticmethod
-    def get_morpholine():
-        """Морфолин: 6-членный насыщенный цикл C4N1O1.
-
-        Нумерация: N0, C1, C2, O3, C4, C5 по кольцу. Все связи одинарные.
-        """
-        return np.array([
-            [0, 1, 0, 0, 0, 1],  # N0-C1, N0-C5
-            [1, 0, 1, 0, 0, 0],
-            [0, 1, 0, 1, 0, 0],
-            [0, 0, 1, 0, 1, 0],
-            [0, 0, 0, 1, 0, 1],
-            [1, 0, 0, 0, 1, 0]
-        ], dtype=int)
-
-    # 5) Ароматические кислородсодержащие фрагменты
-
-    @staticmethod
-    def get_phenol_core():
-        """Фенольное ядро: бензол, где один C помечен под –OH.
-
-        Здесь возвращается просто матрица бензола; информация о том,
-        какой атом замещён OH, должна храниться в логике генератора
-        (например, через attachment_points).
-        """
-        return FragmentLibrary.get_benzene().copy()
-
-    @staticmethod
-    def get_aryl_carbonyl_core():
-        """Ароматический карбонил –CO–, связывающийся с ароматическим C.
-
-        Фактически это тот же карбонильный фрагмент C=O,
-        но его можно учитывать отдельно в словаре фрагментов.
-        """
-        return FragmentLibrary.get_carbonyl().copy()
 
 # === АЦИКЛИЧЕСКИЕ ФРАГМЕНТЫ ===
 def create_methylene(): return MoleculeFragment('methylene', {'C': 1}, 0, ['C'], [], [0, 0])

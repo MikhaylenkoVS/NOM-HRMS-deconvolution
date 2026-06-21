@@ -2,8 +2,8 @@
 import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from src import ui
-from .rdkit_utils import (
+from src.ui import *
+from src.structures.rdkit_utils import (
     RDKIT_OK,
     PIL_OK,
     mol_to_pil,
@@ -11,6 +11,7 @@ from .rdkit_utils import (
     save_mol,
     save_png,
 )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ДИАЛОГ ОДНОЙ СТРУКТУРЫ

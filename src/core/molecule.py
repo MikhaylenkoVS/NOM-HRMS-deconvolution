@@ -1,37 +1,58 @@
+from src.core.atoms import Atom
 from collections import defaultdict
 from typing import List, Tuple, Dict
-from .atoms import Atom
-from .fragments import FUNCTIONAL_GROUPS, FRAGMENT_LIBRARY, ALL_FRAGMENTS, MoleculeFragment, create_cooh, create_oh
 
 
 class Molecule:
-    """Класс для представления молекулы"""
+    """Class representing a molecule"""
 
     def __init__(self, formula: str = ""):
-        self.formula = formula
+        self.formula = formula          # stored label, not parsed into atoms
         self.atoms: List[Atom] = []
         self.edges: List[Tuple[int, int, int]] = []
 
     def add_atom(self, symbol: str, formal_charge: int = 0) -> int:
-        """Добавить атом в молекулу"""
+        """Add an atom to the molecule. Returns the new atom's index."""
         atom_number = len(self.atoms)
         atom = Atom(symbol, atom_number, formal_charge)
         self.atoms.append(atom)
         return atom_number
 
-    def add_bond(self, atom1: int, atom2: int, bond_order: int = 1):
-        """Добавить связь между атомами"""
+    def add_bond(self, atom1: int, atom2: int, bond_order: int = 1) -> None:
+        """
+        Add a bond between two atoms with full pre‑validation.
+        The bond is only added if:
+          - both indices are valid and different,
+          - the bond does not already exist,
+          - each atom has enough remaining valence.
+        """
+        # Индексы должны быть в допустимом диапазоне
         if atom1 >= len(self.atoms) or atom2 >= len(self.atoms):
             return
+        if atom1 == atom2:
+            return                     # самосвязывание запрещено
 
-        success1 = self.atoms[atom1].add_bond(atom2, bond_order)
-        success2 = self.atoms[atom2].add_bond(atom1, bond_order)
+        a1 = self.atoms[atom1]
+        a2 = self.atoms[atom2]
 
-        if success1 and success2:
-            self.edges.append((atom1, atom2, bond_order))
+        # Защита от дублирования связи
+        if atom2 in a1.connections or atom1 in a2.connections:
+            return
+
+        # Проверка валентности
+        if a1.used_valence + bond_order > a1.valence:
+            return
+        if a2.used_valence + bond_order > a2.valence:
+            return
+
+        # Все проверки пройдены – безопасно добавляем связь.
+        # Вызовы add_bond атомов гарантированно вернут True, т.к. мы уже всё проверили.
+        a1.add_bond(atom2, bond_order)
+        a2.add_bond(atom1, bond_order)
+        self.edges.append((atom1, atom2, bond_order))
 
     def is_connected(self) -> bool:
-        """Проверка связности графа молекулы (DFS)"""
+        """Check if the molecular graph is fully connected (DFS)."""
         if not self.atoms:
             return True
 
@@ -39,17 +60,16 @@ class Molecule:
         stack = [0]
 
         while stack:
-            atom_idx = stack.pop()
-            if atom_idx in visited:
+            idx = stack.pop()
+            if idx in visited:
                 continue
-            visited.add(atom_idx)
-            atom = self.atoms[atom_idx]
-            stack.extend(atom.connections)
+            visited.add(idx)
+            stack.extend(self.atoms[idx].connections)
 
         return len(visited) == len(self.atoms)
 
-    def calculate_IHD(self) -> int:
-        """Индекс водородной недостаточности (IHD)"""
+    def calculate_IHD(self) -> float:
+        """Index of Hydrogen Deficiency (IHD), or degree of unsaturation."""
         element_count = defaultdict(int)
         for atom in self.atoms:
             element_count[atom.symbol] += 1
@@ -57,53 +77,51 @@ class Molecule:
         C = element_count.get('C', 0)
         H = element_count.get('H', 0)
         N = element_count.get('N', 0)
-        X = element_count.get('F', 0) + element_count.get('Cl', 0) + \
-            element_count.get('Br', 0) + element_count.get('I', 0)
+        X = (element_count.get('F', 0) + element_count.get('Cl', 0) +
+             element_count.get('Br', 0) + element_count.get('I', 0))
 
-        if H + X < 1:
-            return 0
-
-        ihd = (2*C + 2 - H + N - X) / 2
-        return max(0, int(ihd))
+        IHD = (2 * C + 2 - H + N - X) / 2
+        return max(0.0, IHD)
 
     def get_formula(self) -> str:
-        """Получить молекулярную формулу"""
+        """Return the molecular formula in Hill notation."""
         element_count = defaultdict(int)
         for atom in self.atoms:
             element_count[atom.symbol] += 1
 
-        formula = ""
-        for element in ['C', 'H', 'N', 'O', 'P', 'S', 'F', 'Cl', 'Br', 'I']:
-            if element in element_count:
-                count = element_count[element]
-                formula += element if count == 1 else f"{element}{count}"
+        if 'C' in element_count:
+            order = ['C', 'H'] + sorted(
+                el for el in element_count if el not in ('C', 'H')
+            )
+        else:
+            order = sorted(element_count.keys())
 
-        return formula
+        parts = []
+        for el in order:
+            count = element_count[el]
+            parts.append(el if count == 1 else f"{el}{count}")
+        return "".join(parts)
 
     def to_smiles(self) -> str:
-        """Упрощенная генерация SMILES"""
-        if not self.atoms:
-            return ""
+        """
+        Generate a SMILES string for the molecule.
+        (Proper implementation requires a full canonicalisation algorithm;
+        currently not implemented.)
+        """
+        raise NotImplementedError(
+            "Full SMILES generation is not yet implemented. "
+            "Use get_formula() for a string representation."
+        )
 
-        smiles_parts = []
-        for atom in self.atoms:
-            symbol = atom.symbol
-            if atom.formal_charge > 0:
-                symbol += f"+{atom.formal_charge}"
-            elif atom.formal_charge < 0:
-                symbol += str(atom.formal_charge)
-            smiles_parts.append(symbol)
-
-        return "(".join(smiles_parts) + ")" * (len(smiles_parts) - 1)
-
-    def __repr__(self):
-        return f"Molecule({self.get_formula()}, {len(self.atoms)} atoms, {len(self.edges)} bonds)"
+    def __repr__(self) -> str:
+        return (f"Molecule({self.get_formula()}, "
+                f"{len(self.atoms)} atoms, {len(self.edges)} bonds)")
 
 
 def parse_formula(formula: str) -> Dict[str, int]:
-    """Парсит молекулярную формулу в словарь {элемент: количество}.
+    """Parse a molecular formula string into {element: count}.
 
-    Пример: 'C7H6O2' -> {'C': 7, 'H': 6, 'O': 2}
+    Example: 'C7H6O2' -> {'C': 7, 'H': 6, 'O': 2}
     """
     import re
     elems = defaultdict(int)
@@ -113,28 +131,21 @@ def parse_formula(formula: str) -> Dict[str, int]:
         elems[el] += n
     return dict(elems)
 
-def calculate_ihd(formula: Dict[str, int]) -> float:
-    """Вычисляет степень ненасыщенности (IHD) по формуле.
+
+def calculate_IHD(formula: Dict[str, int]) -> float:
+    """Calculate Index of Hydrogen Deficiency (IHD) from a formula dict.
 
     IHD = (2*C + 2 + N - H - X) / 2
-    где C - углероды, N - азоты, H - водороды, X - галогены
+    where X = total halogens (F, Cl, Br, I)
     """
     C = formula.get('C', 0)
     H = formula.get('H', 0)
     N = formula.get('N', 0)
     X = sum(formula.get(hal, 0) for hal in ['F', 'Cl', 'Br', 'I'])
-    return (2*C + 2 + N - H - X) / 2
+    return (2 * C + 2 + N - H - X) / 2
 
-def add_formula(base: Dict[str, int], delta: Dict[str, int], k: int = 1):
-    """Добавляет формулу delta к base, умножая на коэффициент k."""
+
+def add_formula(base: Dict[str, int], delta: Dict[str, int], k: int = 1) -> None:
+    """Add delta multiplied by k to base (in-place)."""
     for elem, count in delta.items():
         base[elem] = base.get(elem, 0) + count * k
-
-
-
-
-
-
-
-
-

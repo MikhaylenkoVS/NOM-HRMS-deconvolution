@@ -21,7 +21,7 @@ import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-
+from src.core.molecule import parse_formula
 import pandas as pd
 
 # ---------------------------------------------------------------------------
@@ -92,19 +92,20 @@ def _normalize_brutto(value) -> Optional[str]:
 
 
 def _subtract_one_h(brutto: str) -> str:
-    """C20H29O2 → C20H28O2  (H+1 → H, для перевода из [M+H]+ в M)."""
-    import re
-    if brutto is None or not isinstance(brutto, str):
+    if not brutto:
         return brutto
-    m = re.search(r"H(\d+)", brutto)
-    if not m:
+    counts = parse_formula(brutto)
+    h = counts.get('H', 0)
+    if h <= 1:
         return brutto
-    h_count = int(m.group(1))
-    if h_count <= 1:
-        return brutto
-    new_h = f"H{h_count - 1}"
-    old_h = f"H{h_count}"
-    return brutto.replace(old_h, new_h, 1)
+    counts['H'] = h - 1
+    # rebuild using Hill notation (or simple loop)
+    # You can use the helper from molecule.py or write a small rebuild:
+    parts = []
+    for el in ['C', 'H'] + sorted(k for k in counts if k not in ('C', 'H')):
+        if el in counts and counts[el] > 0:
+            parts.append(el if counts[el] == 1 else f"{el}{counts[el]}")
+    return "".join(parts)
 
 
 def _match_row_by_mass(
@@ -919,7 +920,7 @@ def _run_single_test_set(
             assigned_table.loc[mask_assigned, "brutto"].apply(_subtract_one_h)
         )
         src_a.table = assigned_table
-        _debug(f"{set_dir.name} subtract_one_h применён к {mask_assigned.sum()} строкам")
+        _debug(f"{set_dir.name} subtract_one_h применён к {mask_assigned} строкам")
     except Exception as e:
         msg = f"subtract_one_h: {e}"
         print(f"  [WARN] {msg}")

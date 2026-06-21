@@ -5,7 +5,7 @@ from tkinter import ttk
 
 # ── Утилиты встраивания Matplotlib ────────────────────────────────────────
 
-def embed_figure(self, fig, parent: ttk.Frame, toolbar: bool = True):
+def embed_figure(fig, parent, toolbar=True):
     canvas = FigureCanvasTkAgg(fig, master=parent)
     canvas.draw()
     if toolbar:

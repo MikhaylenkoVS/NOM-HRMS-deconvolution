@@ -1,6 +1,6 @@
-from .molecule import MoleculeFragment, Molecule
+from src.core.molecule import Molecule
 
-def to_rdkit_mol(fragment: MoleculeFragment):
+def to_rdkit_mol(fragment: Molecule):
     """Конвертирует MoleculeFragment в RDKit Mol объект."""
     from rdkit import Chem
     from rdkit.Chem import AllChem
@@ -48,7 +48,7 @@ def to_rdkit_mol(fragment: MoleculeFragment):
     return mol
 
 
-def visualize_fragment(fragment: MoleculeFragment,
+def visualize_fragment(fragment: Molecule,
                        highlight_attachment_points: bool = True,
                        size: tuple = (400, 300)):
     """Визуализирует фрагмент с помощью RDKit."""

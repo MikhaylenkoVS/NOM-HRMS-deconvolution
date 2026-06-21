@@ -721,8 +721,7 @@ def build_result_table(src, df_dmet, df_dacet):
 
     Логика:
         N_COOH     = n_groups из df_dmet  (серия CD3,   delta = 17.034 Da)
-        N_OH_total = n_groups из df_dacet (серия CD3CO, delta = 45.029 Da)
-        N_OH       = N_OH_total - N_COOH  (чистые спиртовые ОН)
+        N_OH = n_groups из df_dacet (серия CD3CO, delta = 45.029 Da)
 
     Параметры
     ---------
