@@ -47,9 +47,16 @@ except Exception as _ui_err:
 
     def embed_figure(fig, parent, toolbar=True):
         """Минимальный fallback через FigureCanvasTkAgg."""
+        # очищаем родительский контейнер перед добавлением нового холста
+        for child in parent.winfo_children():
+            child.destroy()
         try:
             from matplotlib.backends.backend_tkagg import (
                 FigureCanvasTkAgg, NavigationToolbar2Tk)
+        except ImportError:
+            print("[WARN] embed_figure: matplotlib.backend_tkagg недоступен")
+            return
+        try:
             canvas = FigureCanvasTkAgg(fig, master=parent)
             canvas.draw()
             if toolbar:
@@ -58,7 +65,12 @@ except Exception as _ui_err:
                 tb.pack(side="bottom", fill="x")
             canvas.get_tk_widget().pack(fill="both", expand=True)
         except Exception:
-            plt.show()
+            print("[WARN] embed_figure: не удалось отобразить фигуру; ошибка ниже",
+                  traceback.format_exc())
+            try:
+                plt.close(fig)
+            except Exception:
+                pass
 
 # ── Импорт пайплайна ─────────────────────────────────────────────────────────
 # ВАЖНО: оставляем ТОЛЬКО один блок импорта из src.core.
