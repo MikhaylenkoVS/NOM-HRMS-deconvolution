@@ -34,3 +34,4 @@ logs/
 *.wiff
 *.tdf
 *.tsf
+.aider*
