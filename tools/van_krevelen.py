@@ -14,6 +14,7 @@ import re
 import argparse
 import sys
 import warnings
+from pathlib import Path
 from typing import Dict, Tuple, List, Optional
 
 import numpy as np
@@ -21,6 +22,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Rectangle
 from matplotlib.collections import PatchCollection
+
+# Make the project root importable so shared paths come from src.configs,
+# regardless of the current working directory.
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from src.configs import PATHS
+
+# Relative defaults resolved against the current working directory.
+DEFAULT_INPUT_CSV = PATHS.default_output_csv  # "result_table.csv"
+DEFAULT_OUTPUT_PNG = "van_krevelen.png"
 
 
 # ----------------------------------------------------------------------
@@ -91,8 +104,8 @@ NOM_REGIONS = [
 # Main plot creation
 # ----------------------------------------------------------------------
 def create_van_krevelen_plot(
-    input_path: str = r'C:\Users\mikha\PycharmProjects\AnaliticsSpectra\src\result_table.csv',
-    output_path: str = r'C:\Users\mikha\PycharmProjects\AnaliticsSpectra\src\van_krevelen.png'
+    input_path: str = DEFAULT_INPUT_CSV,
+    output_path: str = DEFAULT_OUTPUT_PNG
 ) -> None:
     """
     Read the result table, compute elemental ratios, and produce a
@@ -228,11 +241,11 @@ def main() -> None:
         description="Create a Van Krevelen diagram from a result table."
     )
     parser.add_argument(
-        '--input', '-i', default=r'C:\Users\mikha\PycharmProjects\AnaliticsSpectra\src\result_table.csv',
+        '--input', '-i', default=DEFAULT_INPUT_CSV,
         help='Path to input CSV file (semicolon delimited). Default: result_table.csv'
     )
     parser.add_argument(
-        '--output', '-o', default=r'C:\Users\mikha\PycharmProjects\AnaliticsSpectra\src\van_krevelen.png',
+        '--output', '-o', default=DEFAULT_OUTPUT_PNG,
         help='Path to output PNG file. Default: van_krevelen.png'
     )
     args = parser.parse_args()
