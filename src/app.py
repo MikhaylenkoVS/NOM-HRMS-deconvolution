@@ -76,9 +76,12 @@ try:
 except Exception as _core_err:
     CORE_LOADED = False
     _CORE_ERROR = traceback.format_exc()
-    # Заглушки, чтобы имена не были undefined при старте
-    DELTA_CD3 = 17.034
-    DELTA_CD3CO = 44.028
+    # Fallback for names so they are not undefined at startup. Derivatization
+    # shifts still come from the single source of truth (chemistry config),
+    # so their values never diverge from src.core.
+    from src.configs import CHEM
+    DELTA_CD3 = CHEM.derivatization_shifts["delta_cd3"]
+    DELTA_CD3CO = CHEM.derivatization_shifts["delta_cd3co"]
     run_pipeline = load_spectrum = find_series = visualize_series = None
 
 # ── Импорт конфигурации: единый источник дефолтов GUI ─────────────────────
