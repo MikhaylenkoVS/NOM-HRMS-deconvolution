@@ -1,12 +1,22 @@
 import re
 def subtract_one_h(brutto: str) -> str:
-    """
-    Временный костыль: уменьшить число H на 1 в строке формулы.
-    Работает только для CHON-формул, где H явно указан.
-    Примеры:
-      C20H29O2 -> C20H28O2
-      C10H14O2N -> C10H13O2N
-    Если H нет или H1, оставляем как есть.
+    """Decrease the hydrogen count of a brutto formula by one.
+
+    Helper for converting a neutral formula to its ``[M-H]-`` form at the
+    string level.
+
+    Parameters
+    ----------
+    brutto : str
+        CHON brutto formula with an explicit hydrogen count, e.g.
+        ``"C20H29O2"``.
+
+    Returns
+    -------
+    str
+        Formula with ``H`` reduced by one (e.g. ``"C20H28O2"``). Returned
+        unchanged if the input is not a string, has no explicit ``Hn``, or
+        already has ``H`` count ``<= 1`` (to avoid ``H0``/``H-1``).
     """
     if brutto is None or not isinstance(brutto, str):
         return brutto

@@ -54,13 +54,40 @@ def _debug(msg: str) -> None:
 
 
 def _ppm_error(observed: float, theoretical: float) -> float:
+    """Return the absolute mass error between two masses in ppm.
+
+    Parameters
+    ----------
+    observed : float
+        Observed mass (Da).
+    theoretical : float
+        Theoretical/reference mass (Da).
+
+    Returns
+    -------
+    float
+        ``|observed - theoretical| / theoretical * 1e6``; ``inf`` if the
+        theoretical mass is zero.
+    """
     if theoretical == 0:
         return float("inf")
     return abs(observed - theoretical) / theoretical * 1e6
 
 
 def _normalize_brutto(value) -> Optional[str]:
-    """Нормализует брутто-формулу: убирает пробелы, переводит в верхний регистр."""
+    """Canonicalize a brutto-formula string to Hill-ordered element counts.
+
+    Parameters
+    ----------
+    value : str or NaN
+        Raw formula string (any element order, possibly with whitespace).
+
+    Returns
+    -------
+    str or None
+        Formula in canonical order (C, H, then others alphabetically),
+        e.g. ``"C7H6O2"``; ``None`` for missing/empty input.
+    """
     import re
     if pd.isna(value):
         return None
@@ -92,6 +119,19 @@ def _normalize_brutto(value) -> Optional[str]:
 
 
 def _subtract_one_h(brutto: str) -> str:
+    """Remove one hydrogen from a formula to model the [M-H]- ion.
+
+    Parameters
+    ----------
+    brutto : str
+        Neutral molecular formula, e.g. ``"C7H6O2"``.
+
+    Returns
+    -------
+    str
+        Formula with one fewer H (Hill notation). Returned unchanged if the
+        input is empty or has at most one hydrogen.
+    """
     if not brutto:
         return brutto
     counts = parse_formula(brutto)
@@ -115,8 +155,26 @@ def _match_row_by_mass(
     mass_col: str = "mass",
     require_assigned: bool = False,
 ) -> Optional[pd.Series]:
-    """Ищет строку в таблице по массе с допуском ppm_tol.
-    Возвращает ближайшую строку или None.
+    """Find the table row whose mass best matches an observed mass.
+
+    Parameters
+    ----------
+    table : pandas.DataFrame
+        Table to search; must contain ``mass_col``.
+    mass_obs : float
+        Observed mass (Da) to match.
+    ppm_tol : float
+        Maximum allowed mass error (ppm).
+    mass_col : str, optional
+        Name of the mass column. Default ``"mass"``.
+    require_assigned : bool, optional
+        If ``True``, keep only rows where ``assign`` is truthy. Default False.
+
+    Returns
+    -------
+    pandas.Series or None
+        The closest matching row within tolerance, or ``None`` if no row
+        qualifies.
     """
     if table is None or table.empty:
         return None
@@ -144,6 +202,17 @@ def _match_row_by_mass(
 
 @dataclass
 class SeriesStats:
+    """Summary statistics for one derivatization-series search.
+
+    Attributes
+    ----------
+    rows : int
+        Number of series records found.
+    max_groups : int
+        Largest series length (max functional-group count) observed.
+    missing_total : int
+        Total number of missing (gap) steps across all series.
+    """
     rows: int = 0
     max_groups: int = 0
     missing_total: int = 0
@@ -151,6 +220,26 @@ class SeriesStats:
 
 @dataclass
 class PipelineStats:
+    """Aggregate counters describing one full pipeline run.
+
+    Attributes
+    ----------
+    src_loaded, dmet_loaded, dacet_loaded : int
+        Peak counts loaded from the source, deuteromethylated and
+        deuteroacylated spectra.
+    src_denoised, dmet_denoised, dacet_denoised : int
+        Peak counts remaining after denoising.
+    assigned_count : int
+        Number of source peaks assigned a brutto formula.
+    assigned_ratio : float
+        Fraction of denoised source peaks that were assigned.
+    dmet, dacet : SeriesStats
+        Series statistics for the -COOH (CD3) and -OH (CD3CO) searches.
+    result_rows : int
+        Number of rows in the final result table.
+    result_n_cooh_gt0, result_n_oh_gt0 : int
+        Count of result rows with at least one -COOH / -OH group.
+    """
     src_loaded: int = 0
     dmet_loaded: int = 0
     dacet_loaded: int = 0
@@ -172,6 +261,17 @@ class PipelineStats:
 
 @dataclass
 class PipelineRunResult:
+    """Result of a single (non-test) pipeline run.
+
+    Attributes
+    ----------
+    table : pandas.DataFrame
+        Final result table with per-compound -COOH / -OH counts.
+    stats : PipelineStats
+        Aggregate run statistics.
+    messages : list of str
+        Human-readable status/diagnostic messages produced during the run.
+    """
     table: pd.DataFrame
     stats: PipelineStats
     messages: list[str] = field(default_factory=list)
@@ -183,6 +283,29 @@ class PipelineRunResult:
 
 @dataclass
 class TestSetResult:
+    """Validation metrics for one synthetic test set in test mode.
+
+    Attributes
+    ----------
+    set_name : str
+        Name of the test set (e.g. ``"set_01"``).
+    total_signals : int
+        Number of ground-truth signals in the set.
+    denoised_kept : int
+        Peaks retained after denoising.
+    assigned_ok : int
+        Peaks assigned a correct brutto formula.
+    dmet_found, dmet_matched, dmet_wrong : int
+        -COOH (CD3) series counts: found, matching ground truth, and wrong.
+    dacet_found, dacet_matched, dacet_wrong : int
+        -OH (CD3CO) series counts: found, matching ground truth, and wrong.
+    errors : list of str
+        Error messages accumulated while processing the set.
+    result_table : pandas.DataFrame or None
+        Final result table for the set, if produced.
+    assigned_only : pandas.DataFrame or None
+        Subset of assigned peaks, if produced.
+    """
     set_name: str
     total_signals: int = 0
     denoised_kept: int = 0
@@ -205,10 +328,12 @@ class TestSetResult:
 
     @property
     def denoise_recall(self) -> float:
+        """float: Fraction of ground-truth signals kept after denoising."""
         return self.denoised_kept / self.total_signals if self.total_signals else 0.0
 
     @property
     def assign_recall(self) -> float:
+        """float: Fraction of ground-truth signals correctly assigned."""
         return self.assigned_ok / self.total_signals if self.total_signals else 0.0
 
 
@@ -249,12 +374,54 @@ def run_pipeline(
     test_mode: bool = False,
     test_sets_root=None,
 ):
-    """
-    Полный пайплайн определения числа -COOH и -OH групп.
+    """Run the full -COOH / -OH quantification pipeline.
 
-    Если test_mode=True – игнорирует src_path/dmet_path/dacet_path,
-    прогоняет set_01..set_05 из test_sets_root и возвращает список TestSetResult.
-    GUI при этом не запускается.
+    Executes the sequence load -> denoise -> assign formulas -> find series
+    -> build result table on a triple of spectra (original, deuteromethylated,
+    deuteroacylated), counting carboxyl and hydroxyl groups per compound.
+
+    Parameters
+    ----------
+    src_path, dmet_path, dacet_path : str or None
+        Paths to the original, deuteromethylated and deuteroacylated spectrum
+        CSVs. Ignored when ``test_mode=True``.
+    sep : str, keyword-only, optional
+        CSV field separator. Default ``","``.
+    load_mass_min, load_mass_max : float, keyword-only, optional
+        m/z window applied at load time (Da). Defaults 0.0 and 1000.0.
+    noise_force, noise_intensity, noise_quantile : optional
+        Denoising parameters forwarded to :func:`denoise`.
+    brutto_dict : dict or None, keyword-only, optional
+        Per-element ranges for formula assignment.
+    rel_error : float, keyword-only, optional
+        Mass tolerance (ppm) for formula assignment. Default 1.0.
+    sign : {'-', '+'}, keyword-only, optional
+        Ionization sign; ``'-'`` = [M-H]-. Default ``'-'``.
+    assign_mass_min, assign_mass_max : float, keyword-only, optional
+        m/z window for assignment. Defaults 0 and 1000.
+    ppm_tol : float, keyword-only, optional
+        Tolerance (ppm) for series matching. Default 5.0.
+    max_groups : int, keyword-only, optional
+        Maximum functional groups per molecule to probe. Default 20.
+    allow_gaps : bool, keyword-only, optional
+        Whether to tolerate gaps within a series. Default ``True``.
+    visualize : bool, keyword-only, optional
+        Whether to render series plots. Default ``True``.
+    save_dmet, save_dacet : optional
+        Paths to save the -COOH / -OH series figures.
+    output_csv : str or None, keyword-only, optional
+        If given, the result table is written to this CSV path.
+    test_mode : bool, keyword-only, optional
+        If ``True``, ignore the path arguments and run the bundled test sets
+        instead. Default ``False``.
+    test_sets_root : str or None, keyword-only, optional
+        Root directory of the test sets used when ``test_mode=True``.
+
+    Returns
+    -------
+    PipelineRunResult or list of TestSetResult
+        A :class:`PipelineRunResult` for a normal run, or a list of
+        :class:`TestSetResult` when ``test_mode=True``.
     """
 
     # -----------------------------------------------------------------------
@@ -628,7 +795,34 @@ def _run_test_mode(
     max_groups=20,
     allow_gaps=True,
 ) -> list[TestSetResult]:
-    """Прогоняет пайплайн по каждому set_0N и выводит подробную статистику."""
+    """Run the pipeline over every ``set_0N`` and print detailed statistics.
+
+    Parameters
+    ----------
+    test_sets_root : str, path-like or None, optional
+        Root directory holding the ``set_0*`` folders. If ``None``, it is
+        auto-detected relative to the repository, falling back to
+        ``<cwd>/data/test_sets``.
+    noise_force, noise_intensity, noise_quantile : optional
+        Denoising parameters.
+    assign_mass_min, assign_mass_max : float or None, optional
+        Mass window for formula assignment.
+    rel_error : float, optional
+        Mass tolerance (ppm) for assignment. Default 0.5.
+    sign : {'-', '+'}, optional
+        Ionization sign. Default ``'-'``.
+    ppm_tol : float, optional
+        Series-matching tolerance (ppm). Default 0.5.
+    max_groups : int, optional
+        Maximum functional groups probed per molecule. Default 20.
+    allow_gaps : bool, optional
+        Whether to tolerate gaps within a series. Default ``True``.
+
+    Returns
+    -------
+    list of TestSetResult
+        One result per test set; empty if the root or sets are missing.
+    """
 
     # Resolve roots
     if test_sets_root is None:
@@ -769,7 +963,35 @@ def _run_single_test_set(
     max_groups,
     allow_gaps,
 ) -> TestSetResult:
-    """Прогоняет полный пайплайн для одного set_dir. Не бросает исключений наружу."""
+    """Run the full pipeline on a single test-set directory.
+
+    Parameters
+    ----------
+    set_dir : pathlib.Path
+        Directory of one test set containing ``original.csv``,
+        ``deutermethylated.csv``, ``deuteroacylated.csv`` and ground-truth
+        annotations.
+    noise_force, noise_intensity, noise_quantile : optional
+        Denoising parameters.
+    assign_mass_min, assign_mass_max : float or None
+        Mass window for formula assignment.
+    rel_error : float
+        Mass tolerance (ppm) for assignment.
+    sign : {'-', '+'}
+        Ionization sign.
+    ppm_tol : float
+        Series-matching tolerance (ppm).
+    max_groups : int
+        Maximum functional groups probed per molecule.
+    allow_gaps : bool
+        Whether to tolerate gaps within a series.
+
+    Returns
+    -------
+    TestSetResult
+        Validation metrics for the set. Never raises; errors are captured in
+        the result's ``errors`` list.
+    """
 
     res = TestSetResult(set_name=set_dir.name)
     sep_line = "─" * 60

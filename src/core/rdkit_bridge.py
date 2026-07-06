@@ -1,7 +1,31 @@
+"""Bridge between the internal molecule model and RDKit.
+
+Provides converters and visualization helpers that turn the project's own
+``Molecule`` / ``MoleculeFragment`` objects into RDKit ``Mol`` objects and
+2D depictions. RDKit (and IPython, for inline display) is imported lazily so
+the rest of the pipeline can run without it installed.
+"""
 from src.core.molecule import Molecule
 
 def to_rdkit_mol(fragment: Molecule):
-    """Конвертирует MoleculeFragment в RDKit Mol объект."""
+    """Convert an internal molecule/fragment to a sanitized RDKit ``Mol``.
+
+    Parameters
+    ----------
+    fragment : Molecule or MoleculeFragment
+        Object exposing ``atoms`` (element symbols) and ``bonds`` as
+        ``(i, j, order)`` triples.
+
+    Returns
+    -------
+    rdkit.Chem.Mol
+        RDKit molecule with explicit hydrogens and computed 2D coordinates.
+
+    Notes
+    -----
+    Sanitization falls back to a reduced operation set if full sanitization
+    fails, so partially specified fragments can still be drawn.
+    """
     from rdkit import Chem
     from rdkit.Chem import AllChem
 
@@ -51,7 +75,23 @@ def to_rdkit_mol(fragment: Molecule):
 def visualize_fragment(fragment: Molecule,
                        highlight_attachment_points: bool = True,
                        size: tuple = (400, 300)):
-    """Визуализирует фрагмент с помощью RDKit."""
+    """Render a single fragment to a PIL image with RDKit.
+
+    Parameters
+    ----------
+    fragment : Molecule or MoleculeFragment
+        Fragment to draw.
+    highlight_attachment_points : bool, optional
+        If ``True``, highlight the fragment's free attachment points.
+        Default ``True``.
+    size : tuple of (int, int), optional
+        Image size in pixels ``(width, height)``. Default ``(400, 300)``.
+
+    Returns
+    -------
+    PIL.Image.Image
+        Rendered depiction of the fragment.
+    """
     from rdkit.Chem import Draw
 
     mol = to_rdkit_mol(fragment)
@@ -74,7 +114,27 @@ def visualize_fragments_grid(fragments: list,
                              names: list = None,
                              mols_per_row: int = 3,
                              subImgSize: tuple = (300, 250)):
-    """Визуализирует несколько фрагментов в виде сетки."""
+    """Render several fragments as a labelled grid image.
+
+    Parameters
+    ----------
+    fragments : list of Molecule or MoleculeFragment
+        Fragments to draw.
+    names : list of str, optional
+        Display names, one per fragment. Defaults to each fragment's
+        ``name`` attribute.
+    mols_per_row : int, optional
+        Number of depictions per row. Default 3.
+    subImgSize : tuple of (int, int), optional
+        Size in pixels ``(width, height)`` of each cell. Default
+        ``(300, 250)``.
+
+    Returns
+    -------
+    PIL.Image.Image
+        Grid image whose legends show the name, heavy-atom formula and
+        IHD of each fragment.
+    """
     from rdkit.Chem import Draw
 
     mols = [to_rdkit_mol(frag) for frag in fragments]
@@ -102,7 +162,30 @@ def visualize_fragments_grid(fragments: list,
 def visualize_connection_sequence(fragments: list,
                                   connections: list,
                                   size: tuple = (400, 300)):
-    """Визуализирует последовательность соединения фрагментов."""
+    """Draw the stepwise assembly of a molecule from its fragments.
+
+    Starting from the first fragment, each subsequent fragment is joined
+    through the specified attachment points and the growing structure is
+    rendered after every step.
+
+    Parameters
+    ----------
+    fragments : list of Molecule or MoleculeFragment
+        Fragments to connect in order; ``fragments[0]`` is the starting
+        skeleton.
+    connections : list of tuple
+        One ``(my_point, other_point, bond_order)`` triple per fragment
+        after the first, describing how it attaches to the current
+        structure.
+    size : tuple of (int, int), optional
+        Image size in pixels ``(width, height)``. Default ``(400, 300)``.
+
+    Returns
+    -------
+    list of tuple
+        ``(title, PIL.Image.Image)`` pairs, one for the starting fragment
+        and one for each connection step.
+    """
     images = []
 
     current = fragments[0]
@@ -121,7 +204,22 @@ def visualize_connection_sequence(fragments: list,
 
 
 def print_molecule_info(mol: Molecule, index: int = None):
-    """Вывести информацию о молекуле"""
+    """Print a human-readable summary of a molecule to stdout.
+
+    Parameters
+    ----------
+    mol : Molecule
+        Molecule to describe.
+    index : int, optional
+        Structure number shown in a header banner. If ``None`` no header
+        is printed.
+
+    Returns
+    -------
+    None
+        Output (formula, atom/bond counts, IHD, connectivity, and the
+        first ten atoms and bonds) is written to stdout.
+    """
     if index is not None:
         print(f"\n{'='*60}")
         print(f"СТРУКТУРА #{index}")
@@ -151,7 +249,23 @@ def print_molecule_info(mol: Molecule, index: int = None):
 
 
 def visualize_with_rdkit(mol: Molecule):
-    """Визуализация молекулы через RDKit"""
+    """Render a molecule inline with RDKit and IPython display.
+
+    Builds an RDKit ``Mol`` from the internal representation (preserving
+    formal charges), computes 2D coordinates and displays the depiction,
+    e.g. inside a Jupyter notebook.
+
+    Parameters
+    ----------
+    mol : Molecule
+        Molecule to visualize.
+
+    Returns
+    -------
+    rdkit.Chem.Mol or None
+        The constructed RDKit molecule, or ``None`` if RDKit/IPython are
+        not installed or rendering fails.
+    """
     try:
         from rdkit import Chem
         from rdkit.Chem import Draw

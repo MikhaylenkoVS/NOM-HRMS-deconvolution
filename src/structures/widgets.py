@@ -18,7 +18,22 @@ from src.structures.rdkit_utils import (
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class StructureDialog(tk.Toplevel):
-    """Всплывающее окно с увеличенным изображением и кнопками экспорта."""
+    """Pop-up window showing an enlarged structure with export buttons.
+
+    Displays the molecule name, formula, IHD, heavy-atom and bond counts,
+    a large 2D depiction and the constituent fragments, together with
+    buttons to save the structure as ``.mol`` or ``.png``.
+
+    Parameters
+    ----------
+    parent : tkinter.Widget
+        Parent window.
+    mol_info : dict
+        Metadata for the structure (``name``, ``formula``, ``ihd``,
+        ``num_atoms``, ``num_bonds``, ``combination``).
+    rdmol : rdkit.Chem.Mol or None
+        RDKit molecule to render; ``None`` if unavailable.
+    """
 
     def __init__(self, parent, mol_info: dict, rdmol):
         super().__init__(parent)
@@ -109,7 +124,25 @@ class StructureDialog(tk.Toplevel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class StructureCard(ttk.Frame):
-    """Миниатюрная карточка с изображением и кнопками."""
+    """Compact card widget showing one candidate structure.
+
+    Renders a thumbnail depiction plus the name, formula and IHD, with
+    buttons to open a detailed :class:`StructureDialog` and to export the
+    structure as ``.mol`` or ``.png``.
+
+    Parameters
+    ----------
+    parent : tkinter.Widget
+        Parent container.
+    mol_info : dict
+        Structure metadata (``name``, ``formula``, ``ihd``, ...).
+    rdmol : rdkit.Chem.Mol or None
+        RDKit molecule to render; ``None`` if unavailable.
+    index : int
+        1-based position shown in the card header.
+    **kw
+        Additional keyword arguments forwarded to ``ttk.Frame``.
+    """
 
     def __init__(self, parent, mol_info: dict, rdmol, index: int, **kw):
         super().__init__(parent, **kw)
@@ -119,7 +152,14 @@ class StructureCard(ttk.Frame):
         self._build(mol_info, rdmol, index)
 
     def cleanup(self):
-        """Явно обнуляем PhotoImage до уничтожения виджета."""
+        """Release the cached ``PhotoImage`` before the widget is destroyed.
+
+        Returns
+        -------
+        None
+            Clears the internal image reference so Tk can garbage-collect
+            the image without leaving a dangling reference.
+        """
         self._tk_img = None
 
     def _build(self, info: dict, rdmol, idx: int):

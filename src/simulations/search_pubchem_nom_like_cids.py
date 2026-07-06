@@ -1,18 +1,14 @@
-"""Поиск NOM-подобных кандидатов из произвольной выборки PubChem.
+"""Mine NOM-like reference molecules from a random PubChem sample.
 
-Идея:
-- взять набор заранее известных CID (или диапазон CID),
-- последовательно вытащить соединения через pubchempy,
-- прогнать через фильтры (нейтральность, -OH/-COOH, масса 100–600),
-- сохранить отобранные в ref_molecules_set_01_pubchem.csv.
+Draws random PubChem CIDs, fetches each compound via ``pubchempy``,
+filters for neutral molecules carrying 1-10 -COOH and -OH groups with a
+mass of 100-600 Da (RDKit substructure counting), and accumulates the
+survivors into a reference CSV for building test sets.
 
-Важно: в этом skeleton нет реального механизма получения "10000 произвольных" CID
-(это зависит от того, какие именно CID доступны и как ты хочешь их выбирать).
-Ты можешь:
-- либо задать диапазон CID (например, 1–200000) и случайно выбирать из него,
-- либо подготовить список CID любым другим способом.
-
-Я здесь оставляю точку расширения: get_random_cids().
+Notes
+-----
+:func:`get_random_cids` is the extension point for CID selection; the
+default draws random integers from a heuristic CID range.
 """
 
 from pathlib import Path
@@ -35,17 +31,22 @@ REF_PATH_ALL = REF_DIR / "ref_molecules_all_pubchem.csv"
 
 
 def get_random_cids(max_count: int = 100) -> list[int]:
-    """Получить список произвольных CID для выборки из PubChem.
+    """Collect random valid PubChem CIDs.
 
-    Подход:
-    - выбираем случайные целые числа в заданном диапазоне CID,
-    - пытаемся для каждого получить Compound через pubchempy,
-    - оставляем только те CID, для которых comp.canonical_smiles и molecular_formula не пустые.
+    Draws random integers from a heuristic CID range, keeping only those
+    that resolve to a compound with a non-empty SMILES and molecular
+    formula. The number of attempts is capped to bound runtime.
 
-    Ограничения:
-    - нет гарантии, что все CID валидные,
-    - часть запросов может падать (поэтому используем try/except),
-    - для контроля времени ограничиваем общее число попыток.
+    Parameters
+    ----------
+    max_count : int, optional
+        Number of valid CIDs to collect. Default 100.
+
+    Returns
+    -------
+    list of int
+        Collected CIDs (may be shorter than ``max_count`` if the attempt
+        budget is exhausted).
     """
 
     # Диапазон CID — эвристический (PubChem CID начинаются с 1, верхняя граница условная).
@@ -86,7 +87,19 @@ def get_random_cids(max_count: int = 100) -> list[int]:
 
 
 def fetch_compounds_by_cids(cids: List[int]) -> List[Dict[str, str]]:
-    """Получить сырые кандидаты по списку CID."""
+    """Fetch raw candidate records for a list of PubChem CIDs.
+
+    Parameters
+    ----------
+    cids : list of int
+        PubChem compound IDs.
+
+    Returns
+    -------
+    list of dict
+        One record per resolvable compound with ``cid``, ``name``,
+        ``smiles``, ``formula``, ``exact_mass`` and ``source`` keys.
+    """
 
     candidates: List[Dict[str, str]] = []
 
@@ -119,7 +132,20 @@ def fetch_compounds_by_cids(cids: List[int]) -> List[Dict[str, str]]:
 
 
 def count_carboxyl_and_hydroxyl(smiles: str) -> Dict[str, int]:
-    """Подсчитать число -COOH и -OH через RDKit."""
+    """Count -COOH and -OH groups (and net charge) via RDKit SMARTS.
+
+    Parameters
+    ----------
+    smiles : str
+        SMILES string of the molecule.
+
+    Returns
+    -------
+    dict of {str: int}
+        Keys ``carboxyl_count`` (``[CX3](=O)[OX2H1]`` matches),
+        ``hydroxyl_count`` (``[OX2H]`` matches) and ``charge`` (net formal
+        charge). All zero if the SMILES cannot be parsed.
+    """
 
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
@@ -144,10 +170,23 @@ def filter_candidates(
     raw_candidates: List[Dict[str, str]],
     max_take: int = 40,
 ) -> List[Dict[str, str]]:
-    """Отфильтровать кандидатов по:
-    - нейтральности,
-    - числу -COOH и -OH (1–10),
-    - массе 100–600.
+    """Filter raw candidates to neutral NOM-like molecules.
+
+    Keeps candidates that are neutral, carry 1-10 -COOH and 1-10 -OH
+    groups, and have a mass in 100-600 Da; annotates each kept record with
+    the counts, charge and mass.
+
+    Parameters
+    ----------
+    raw_candidates : list of dict
+        Records from :func:`fetch_compounds_by_cids`.
+    max_take : int, optional
+        Maximum number of candidates to keep. Default 40.
+
+    Returns
+    -------
+    list of dict
+        Filtered and annotated candidate records.
     """
 
     result: List[Dict[str, str]] = []
@@ -200,18 +239,25 @@ def export_candidates_to_ref_csv(
     set_id: str = "set_01",
     ref_path: Path | None = None,
 ) -> None:
-    """Записать/накопить кандидатов в общий ref CSV.
+    """Append candidates to the shared reference CSV, de-duplicating by CID.
 
-    Логика:
-    - читаем существующий ref_molecules_all_pubchem.csv (если есть);
-    - строим множество существующих pubchem_cid;
-    - добавляем только тех кандидатов, у которых pubchem_cid ещё нет;
-    - пере-нумеровываем compound_number по порядку;
-    - сохраняем обратно.
+    Reads any existing reference file, adds only candidates whose
+    ``pubchem_cid`` is not already present, renumbers ``compound_number``
+    and ``compound_id`` sequentially and writes the result back.
 
-    ref_path:
-    - если передан, используем его;
-    - иначе по умолчанию REF_PATH_ALL.
+    Parameters
+    ----------
+    candidates : list of dict
+        Filtered candidate records from :func:`filter_candidates`.
+    set_id : str, optional
+        Set identifier stored on new rows. Default ``"set_01"``.
+    ref_path : pathlib.Path or None, optional
+        Target CSV; defaults to :data:`REF_PATH_ALL`.
+
+    Returns
+    -------
+    None
+        The accumulated reference table is written to ``ref_path``.
     """
 
     if ref_path is None:
@@ -297,6 +343,14 @@ def export_candidates_to_ref_csv(
     print(f"Total accumulated candidates in {ref_path}: {len(existing)}")
 
 def main():
+    """Run the full random-sampling and filtering workflow once.
+
+    Returns
+    -------
+    None
+        Fetches random compounds, filters them and appends the survivors
+        to :data:`REF_PATH_ALL`.
+    """
     cids = get_random_cids(max_count=1000)
     print(f"Got {len(cids)} random CIDs to fetch (example: {cids[:10]})")
     raw = fetch_compounds_by_cids(cids)

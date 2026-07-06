@@ -27,9 +27,17 @@ from matplotlib.collections import PatchCollection
 # Formula parsing
 # ----------------------------------------------------------------------
 def parse_formula(formula: str) -> Dict[str, int]:
-    """
-    Parse a molecular formula string (e.g. 'C12H18O5') into a dictionary
-    {element: count}. Only elements C, H, O, N, S, P are returned.
+    """Parse a molecular formula into an ``{element: count}`` dict.
+
+    Parameters
+    ----------
+    formula : str
+        Molecular formula, e.g. ``"C12H18O5"``.
+
+    Returns
+    -------
+    dict of {str: int}
+        Element counts restricted to C, H, O, N, S and P.
     """
     pattern = re.compile(r'([A-Z][a-z]?)(\d*)')
     counts: Dict[str, int] = {}
@@ -208,6 +216,14 @@ def create_van_krevelen_plot(
 # Command‑line interface
 # ----------------------------------------------------------------------
 def main() -> None:
+    """Command-line entry point for the Van Krevelen plot.
+
+    Returns
+    -------
+    None
+        Parses ``--input``/``--output`` arguments and delegates to
+        :func:`create_van_krevelen_plot`.
+    """
     parser = argparse.ArgumentParser(
         description="Create a Van Krevelen diagram from a result table."
     )

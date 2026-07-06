@@ -1,10 +1,54 @@
+"""Building-block fragments for enumerating candidate NOM structures.
+
+This module defines :class:`MoleculeFragment` (a reusable structural building
+block with labelled attachment points) together with two data catalogues and
+a family of factory functions:
+
+* ``FRAGMENT_LIBRARY`` — metadata (heavy-atom formula, IHD, number of
+  attachment points, description) for skeletal fragments such as rings and
+  chains.
+* ``FUNCTIONAL_GROUPS`` — metadata for functional groups (e.g. ``cooh``,
+  ``oh``) relevant to NOM chemistry.
+* ``create_<name>()`` factory functions — each returns a ready
+  :class:`MoleculeFragment` with concrete atoms, bonds and attachment points.
+  They follow a uniform one-line convention; see ``ALL_FRAGMENTS`` for the
+  full name-to-factory mapping used by the combination search.
+"""
 from collections import defaultdict
 from typing import Dict, List, Tuple
 import numpy as np
 
 
 class MoleculeFragment:
-    """Фрагмент молекулы с пронумерованными вершинами и внутренней структурой."""
+    """A structural building block with labelled attachment points.
+
+    Represents a connected sub-structure (ring, chain or functional group)
+    whose free valences (attachment points) can be bonded to other fragments
+    to assemble whole molecules.
+
+    Parameters
+    ----------
+    name : str
+        Fragment name (e.g. ``"benzene"``).
+    heavy_formula : dict of {str: int}
+        Heavy-atom (non-hydrogen) element counts.
+    ihd : int
+        Index of hydrogen deficiency contributed by the fragment.
+    atoms : list of str
+        Element symbol of each atom, indexed by position.
+    bonds : list of tuple of (int, int, int)
+        Internal bonds as ``(atom_i, atom_j, bond_order)``.
+    attachment_points : list of int
+        Atom indices exposing a free valence; repeated entries mean multiple
+        free bonds on the same atom.
+
+    Attributes
+    ----------
+    attachment_counts : dict of {int: int}
+        Number of free attachment bonds per atom index.
+    adjacency : dict of {int: list of (int, int)}
+        Neighbour list mapping each atom to ``(neighbour, bond_order)`` pairs.
+    """
 
     def __init__(self, name, heavy_formula, ihd, atoms, bonds, attachment_points):
         self.name = name
@@ -26,17 +70,69 @@ class MoleculeFragment:
         return dict(adj)  # or simply return adj if a defaultdict is acceptable
 
     def get_num_atoms(self) -> int:
+        """Return the number of (heavy) atoms in the fragment.
+
+        Returns
+        -------
+        int
+            Count of atoms.
+        """
         return len(self.atoms)
 
     def get_free_attachment_points(self) -> List[int]:
+        """List all free attachment points, with multiplicity.
+
+        Returns
+        -------
+        list of int
+            Atom indices with a free valence; an atom with two free bonds
+            appears twice.
+        """
         return [idx for idx, cnt in self.attachment_counts.items() for _ in range(cnt)]
 
     def has_free_attachment_point(self, idx: int) -> bool:
+        """Test whether an atom still has a free attachment point.
+
+        Parameters
+        ----------
+        idx : int
+            Atom index to check.
+
+        Returns
+        -------
+        bool
+            ``True`` if atom ``idx`` has at least one free bond available.
+        """
         return self.attachment_counts.get(idx, 0) > 0
 
     def connect_to(self, other: 'MoleculeFragment',
                    my_point: int, other_point: int,
                    bond_order: int = 1) -> 'MoleculeFragment':
+        """Join this fragment to another at given attachment points.
+
+        Parameters
+        ----------
+        other : MoleculeFragment
+            Fragment to attach.
+        my_point : int
+            Atom index on this fragment exposing a free valence.
+        other_point : int
+            Atom index on ``other`` exposing a free valence.
+        bond_order : int, optional
+            Order of the new inter-fragment bond. Default is 1.
+
+        Returns
+        -------
+        MoleculeFragment
+            A new fragment combining both, with atom indices of ``other``
+            offset, the connecting bond added, and the two consumed
+            attachment points removed. Neither input is modified.
+
+        Raises
+        ------
+        ValueError
+            If either attachment point has no free valence left.
+        """
         if not self.has_free_attachment_point(my_point):
             raise ValueError(f"Точка {my_point} в {self.name} уже занята")
         if not other.has_free_attachment_point(other_point):

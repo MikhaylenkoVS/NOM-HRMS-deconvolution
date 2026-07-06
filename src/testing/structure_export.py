@@ -50,9 +50,32 @@ def export_structures_for_compound(
     max_bases: int = MAX_BASES,
     timeout_sec: int = STRUCTURE_TIMEOUT,
 ) -> List[Path]:
-    """
-    Экспортирует структуры с таймаутом.
-    Возвращает список созданных путей (может быть пустым при ошибке/таймауте).
+    """Export candidate structures for one compound, guarded by a timeout.
+
+    Runs the fragment-combination search headlessly in a worker thread so
+    a slow or combinatorially explosive compound cannot hang the suite.
+
+    Parameters
+    ----------
+    brutto : str
+        Brutto (molecular) formula of the compound, e.g. ``"C7H6O2"``.
+    n_cooh : int
+        Number of carboxyl (-COOH) groups to place.
+    n_oh : int
+        Number of hydroxyl (-OH) groups to place.
+    output_dir : pathlib.Path
+        Directory to write the exported structure files into; created if
+        missing.
+    max_bases : int, optional
+        Maximum number of base fragments per structure. Default
+        ``MAX_BASES``.
+    timeout_sec : int, optional
+        Per-compound time budget in seconds. Default ``STRUCTURE_TIMEOUT``.
+
+    Returns
+    -------
+    list of pathlib.Path
+        Paths of the files created; empty on timeout or error.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 

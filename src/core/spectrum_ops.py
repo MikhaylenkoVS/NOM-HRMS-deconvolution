@@ -1,3 +1,23 @@
+"""Spectrum operations for HRMS deconvolution of natural organic matter.
+
+This module implements the core mass-spectrometry steps of the pipeline:
+loading and denoising spectra, assigning CHON brutto formulas in negative
+ion mode ([M-H]-), detecting isotope-labelled derivatization series, and
+assembling the final functional-group count table.
+
+Notes
+-----
+Two derivatization mass increments drive the method:
+
+* ``DELTA_CD3`` = 17.03448 Da per group — deuteromethylation of carboxyl
+  groups (-COOH -> -COOCD3), used to count -COOH.
+* ``DELTA_CD3CO`` = 45.02939 Da per group — deuteroacylation of hydroxyl
+  groups (-OH -> -OCOCD3), used to count -OH.
+
+A homologous "series" is a chain of peaks spaced by an integer multiple of
+one of these increments; the length of the series equals the number of
+reactive functional groups on the parent molecule.
+"""
 import pandas as pd
 import logging
 from nomspectra.spectrum import Spectrum
@@ -34,6 +54,34 @@ ATOMIC_MASS = {
 
 @dataclass
 class FormulaSearchConfig:
+    """Configuration for brute-force CHON formula generation.
+
+    Defines which elements to enumerate, their per-element count ranges, and
+    the chemical plausibility filters used to keep only NOM-like formulas.
+
+    Attributes
+    ----------
+    elements : tuple of str
+        Elements to enumerate, in output order. Default ``("C", "H", "O", "N")``.
+    ranges : dict of {str: tuple of (int, int)}, optional
+        Inclusive ``(min, max)`` count range per element. If ``None``,
+        NOM-oriented defaults are filled in by ``__post_init__``.
+    max_hc : float
+        Maximum allowed H/C atomic ratio. Default 3.0.
+    max_oc : float
+        Maximum allowed O/C atomic ratio. Default 1.2.
+    max_nc : float
+        Maximum allowed N/C atomic ratio. Default 1.0.
+    max_dbe : float
+        Maximum allowed double-bond equivalent (DBE). Default 30.0.
+    min_c : int
+        Minimum number of carbon atoms. Default 1.
+
+    Raises
+    ------
+    ValueError
+        If any element in ``elements`` lacks a range in ``ranges``.
+    """
     elements: tuple[str, ...] = ("C", "H", "O", "N")
     ranges: dict[str, tuple[int, int]] | None = None
     # Простые фильтры (можно менять под задачу)
@@ -58,6 +106,19 @@ class FormulaSearchConfig:
 
 
 def exact_mass_from_counts(counts: dict[str, int]) -> float:
+    """Compute the exact (monoisotopic) neutral mass from element counts.
+
+    Parameters
+    ----------
+    counts : dict of {str: int}
+        Element counts, e.g. ``{'C': 7, 'H': 6, 'O': 2}``. Non-positive
+        counts are ignored.
+
+    Returns
+    -------
+    float
+        Monoisotopic mass in daltons, summed from ``ATOMIC_MASS``.
+    """
     mass = 0.0
     for elem, n in counts.items():
         if n <= 0:
@@ -67,13 +128,40 @@ def exact_mass_from_counts(counts: dict[str, int]) -> float:
 
 
 def dbe_from_counts(counts: dict[str, int]) -> float:
-    """Простейшая DBE для CHON: DBE = 1 + C - H/2 + N/2."""
+    """Compute the double-bond equivalent (DBE) for a CHON formula.
+
+    Parameters
+    ----------
+    counts : dict of {str: int}
+        Element counts; keys ``"C"``, ``"H"``, ``"N"`` are used.
+
+    Returns
+    -------
+    float
+        DBE (rings plus pi-bonds), computed as ``1 + C - H/2 + N/2``.
+    """
     c = counts.get("C", 0)
     h = counts.get("H", 0)
     n = counts.get("N", 0)
     return 1 + c - h / 2.0 + n / 2.0
 
 def _row_to_brutto(row, element_order=None):
+    """Build a Hill-like brutto formula string from element columns of a row.
+
+    Parameters
+    ----------
+    row : pandas.Series or mapping
+        Row containing per-element integer counts under element-symbol keys.
+    element_order : list of str, optional
+        Elements to include, in output order. Defaults to
+        ``["C", "H", "O", "N", "S", "P"]``.
+
+    Returns
+    -------
+    str or None
+        Concatenated formula (e.g. ``"C7H6O2"``), or ``None`` if no positive
+        element counts are present.
+    """
     if element_order is None:
         element_order = ["C", "H", "O", "N", "S", "P"]
 
@@ -97,10 +185,34 @@ def load_spectrum(
     mass_max=700.0,
     metadata=None,
 ):
-    """Загрузка спектра из CSV.
+    """Load a mass spectrum from a CSV file into a Spectrum object.
 
-    Генерирует ValueError/KeyError при проблемах.
-    GUI-слой решает, как эти ошибки показывать пользователю.
+    Parameters
+    ----------
+    path : str or path-like
+        Path to the CSV file with mass and intensity columns.
+    mapper : dict, optional
+        Extra column-rename rules merged over the built-in defaults
+        (which map ``m/z``, ``mz``, ``I`` etc. to ``mass``/``intensity``).
+    sep : str, optional
+        Field separator. Empty/``None`` falls back to ``","``. Default ``","``.
+    mass_min, mass_max : float, optional
+        Inclusive m/z window (Da) to keep. Defaults 200.0 and 700.0.
+    metadata : optional
+        Metadata forwarded to the ``Spectrum`` constructor.
+
+    Returns
+    -------
+    nomspectra.spectrum.Spectrum
+        Spectrum whose table has ``mass`` and ``intensity`` columns,
+        filtered to the requested window.
+
+    Raises
+    ------
+    ValueError
+        If the file cannot be read or no peaks fall within the m/z window.
+    KeyError
+        If ``mass``/``intensity`` columns are absent after renaming.
     """
 
     _sep = sep or ","
@@ -167,13 +279,29 @@ def denoise(
     intensity=None,
     quantile=None,
 ):
-    """
-    Удалить шум из спектра (обёртка вокруг Spectrum.noise_filter()).
+    """Remove noise peaks from a spectrum.
 
-    Приоритет параметров:
-        1. intensity  — жёсткий абсолютный порог;
-        2. quantile   — нижний квантиль (0-1);
-        3. force      — авто-детекция уровня шума, множитель (по умолчанию 1.5).
+    Thin wrapper around ``Spectrum.noise_filter()``.
+
+    Parameters
+    ----------
+    spec : nomspectra.spectrum.Spectrum
+        Input spectrum.
+    force : float, keyword-only, optional
+        Multiplier applied to the auto-detected noise level. Default 1.5.
+    intensity : float, keyword-only, optional
+        Hard absolute intensity threshold. Takes priority when given.
+    quantile : float, keyword-only, optional
+        Lower intensity quantile in [0, 1]. Used if ``intensity`` is None.
+
+    Returns
+    -------
+    nomspectra.spectrum.Spectrum
+        Denoised spectrum.
+
+    Notes
+    -----
+    Parameter priority is ``intensity`` > ``quantile`` > ``force``.
     """
     return spec.noise_filter(force=force, intensity=intensity, quantile=quantile)
 
@@ -195,14 +323,29 @@ def _generate_candidate_formulas(
     cfg: FormulaSearchConfig,
     mode: str = "nom_like",
 ) -> list[tuple[str, float]]:
-    """
-    Генерирует список (formula_str, exact_mass) в окне [mass_min, mass_max]
-    с небольшим запасом по краям.
+    """Enumerate candidate CHON formulas within a neutral-mass window.
 
-    mode:
-      - "nom_like": применять все химические фильтры (H/C, O/C, N/C, DBE, min C),
-                    поведение, близкое к NOMspectra.
-      - "soft": только диапазоны элементов и окно по массе, без химических фильтров.
+    Parameters
+    ----------
+    mass_min, mass_max : float
+        Neutral-mass window (Da). A small margin (+/-1 %) is added at the
+        edges to tolerate rounding.
+    cfg : FormulaSearchConfig
+        Element ranges and chemical filters.
+    mode : {"nom_like", "soft"}, optional
+        ``"nom_like"`` applies all chemical filters (H/C, O/C, N/C, DBE,
+        minimum carbon), close to NOMspectra behaviour. ``"soft"`` applies
+        only element ranges and the mass window. Default ``"nom_like"``.
+
+    Returns
+    -------
+    list of tuple of (str, float)
+        Pairs of ``(formula_string, exact_neutral_mass)``.
+
+    Raises
+    ------
+    ValueError
+        If ``mode`` is not one of the supported values.
     """
     mode = mode.lower()
     if mode not in ("nom_like", "soft"):
@@ -287,9 +430,26 @@ def _generate_candidate_formulas(
     return result
 
 def _neutral_to_ion_mass(neutral_mass: float, ion_mode: str) -> float:
-    """
-    Перевод нейтральной массы в m/z для заданного типа иона.
-    Пока реализуем только несколько базовых вариантов.
+    """Convert a neutral mass to observed m/z for a given ion type.
+
+    Parameters
+    ----------
+    neutral_mass : float
+        Neutral monoisotopic mass (Da).
+    ion_mode : str
+        Ionization mode. Recognised (case-insensitive): ``"neutral"``/empty
+        (no shift), ``"[M-H]-"`` (subtract one proton mass), ``"[M+H]+"``
+        (add one proton mass).
+
+    Returns
+    -------
+    float
+        The corresponding m/z value.
+
+    Raises
+    ------
+    ValueError
+        If ``ion_mode`` is not recognised.
     """
     ion_mode = ion_mode.lower()
 
@@ -316,13 +476,37 @@ def assign_formulas_simple(
     brutto_generation_mode: str = "nom_like",  # "nom_like" или "soft"
     ion_mode: str = "[M-H]-",                 # тип иона; по умолчанию [M-H]-
 ):
-    """
-    Простое назначение формул без эмпирического списка:
-    - генерирует CHON-формулы в заданном окне масс (нейтральные массы),
-    - переводит их в m/z в соответствии с ion_mode,
-    - подбирает лучшую формулу по минимальному ppm-отклонению в пределах rel_error_ppm.
+    """Assign brutto formulas by brute-force CHON enumeration.
 
-    Заполняет src.table["brutto"] и src.table["assign"].
+    Generates candidate CHON formulas over the mass window, converts them to
+    m/z according to ``ion_mode``, and picks for each peak the formula with
+    the smallest ppm deviation within ``rel_error_ppm``.
+
+    Parameters
+    ----------
+    src : nomspectra.spectrum.Spectrum
+        Spectrum whose ``table`` (with a ``mass`` column) is annotated.
+    rel_error_ppm : float, optional
+        Maximum allowed mass error (ppm) for a match. Default 1.0.
+    mass_min, mass_max : float or None, optional
+        Neutral-mass window bounds; if None, taken from the observed masses.
+    search_config : FormulaSearchConfig or None, optional
+        Formula-generation configuration. A default config is used if None.
+    brutto_generation_mode : {"nom_like", "soft"}, optional
+        Passed to the candidate generator. Default ``"nom_like"``.
+    ion_mode : str, optional
+        Ionization mode for the neutral-to-ion conversion. Default ``"[M-H]-"``.
+
+    Returns
+    -------
+    nomspectra.spectrum.Spectrum
+        The same spectrum with ``table["brutto"]`` (formula str or None) and
+        ``table["assign"]`` (bool) columns filled in.
+
+    Notes
+    -----
+    When several candidates tie on ppm, the first generated formula wins;
+    no NOM-space tie-break is currently applied.
     """
     if search_config is None:
         search_config = FormulaSearchConfig()
@@ -401,6 +585,21 @@ AssignMode = Literal["simple", "nomspectra"]
 
 
 def _row_to_brutto_from_elements(row, element_order=None):
+    """Build a brutto formula string from per-element columns of a row.
+
+    Parameters
+    ----------
+    row : pandas.Series or mapping
+        Row with integer element counts under element-symbol keys.
+    element_order : list of str, optional
+        Elements to include, in output order. Defaults to
+        ``["C", "H", "O", "N", "S", "P"]``.
+
+    Returns
+    -------
+    str or None
+        Concatenated formula, or ``None`` if no positive counts are present.
+    """
     if element_order is None:
         element_order = ["C", "H", "O", "N", "S", "P"]
 
@@ -423,13 +622,28 @@ def _row_to_brutto_from_elements(row, element_order=None):
 
 
 def _ensure_brutto_from_element_columns(src):
-    """
-    Гарантирует, что после назначения формул в src.table есть:
-    - assign
-    - brutto
+    """Guarantee ``assign`` and ``brutto`` columns after formula assignment.
 
-    Если brutto отсутствует, но есть элементные столбцы (C, H, O, N, ...),
-    восстанавливает brutto из них. Все прочие столбцы сохраняются.
+    If ``brutto`` is missing but per-element columns (C, H, O, N, ...) are
+    present, the formula string is reconstructed from them for assigned rows.
+    All other columns are preserved.
+
+    Parameters
+    ----------
+    src : nomspectra.spectrum.Spectrum
+        Spectrum whose ``table`` is checked and, if needed, augmented.
+
+    Returns
+    -------
+    nomspectra.spectrum.Spectrum
+        The same spectrum with a guaranteed ``brutto`` column.
+
+    Raises
+    ------
+    TypeError
+        If ``src`` has no ``table`` attribute.
+    RuntimeError
+        If the ``assign`` column is missing from the table.
     """
     if not hasattr(src, "table"):
         raise TypeError("Ожидается объект Spectrum с атрибутом .table")
@@ -466,12 +680,39 @@ def assign_formulas_nomspectra(
     mass_min=None,
     mass_max=None,
 ):
-    """
-    Назначить брутто-формулы пикам исходного спектра через nomspectra.
+    """Assign brutto formulas to the source spectrum via NOMspectra.
 
-    После назначения гарантируются столбцы:
-        assign     — булево назначение
-        brutto     — строковая формула (если её можно восстановить)
+    Parameters
+    ----------
+    src : nomspectra.spectrum.Spectrum
+        Source spectrum to annotate.
+    brutto_dict : dict of {str: tuple of (int, int)}, optional
+        Per-element count ranges. Defaults to ``DEFAULT_BRUTTO_DICT``.
+    rel_error : float, keyword-only, optional
+        Mass tolerance (ppm) for assignment. Negative values are made
+        positive with a warning. Default 0.5.
+    sign : {'-', '+'}, keyword-only, optional
+        Ionization sign; ``'-'`` corresponds to [M-H]-. Default ``'-'``.
+    mass_min, mass_max : float or None, keyword-only, optional
+        Optional m/z window; swapped with a warning if given in wrong order.
+
+    Returns
+    -------
+    nomspectra.spectrum.Spectrum
+        Spectrum with guaranteed boolean ``assign`` and string ``brutto``
+        columns.
+
+    Raises
+    ------
+    TypeError
+        If ``src`` is not a ``Spectrum`` or ``brutto_dict`` is not a dict.
+    ValueError
+        If any element range is not a ``(min, max)`` pair.
+
+    Warns
+    -----
+    UserWarning
+        If no formula could be assigned to any peak.
     """
     if rel_error < 0:
         rel_error = abs(rel_error)
@@ -534,6 +775,46 @@ def assign_formulas(
     ion_mode: str = "[M-H]-",
     **kwargs,
 ):
+    """Dispatch brutto-formula assignment to the selected backend.
+
+    Parameters
+    ----------
+    src : nomspectra.spectrum.Spectrum
+        Spectrum to annotate.
+    mode : {"nomspectra", "simple", "simple_from_molecules"}, optional
+        Assignment backend. Default ``"nomspectra"``.
+    rel_error_ppm : float, optional
+        Mass tolerance (ppm). Default 1.0.
+    mass_min, mass_max : float or None, optional
+        Optional mass window.
+    formulas : sequence, optional
+        Explicit formula list; required for ``"simple_from_molecules"``.
+    brutto_dict : dict, optional
+        Per-element ranges for the NOMspectra backend.
+    sign : {'-', '+'}, optional
+        Ionization sign for the NOMspectra backend. Default ``'-'``.
+    search_config : FormulaSearchConfig or None, optional
+        Configuration for the ``"simple"`` backend.
+    brutto_generation_mode : {"nom_like", "soft"}, optional
+        Candidate-generation mode for the ``"simple"`` backend.
+    ion_mode : str, optional
+        Ionization mode for the ``"simple"`` backend. Default ``"[M-H]-"``.
+    **kwargs
+        Extra arguments forwarded to the NOMspectra backend.
+
+    Returns
+    -------
+    nomspectra.spectrum.Spectrum
+        Annotated spectrum.
+
+    Raises
+    ------
+    ValueError
+        If ``mode`` is unknown, or ``formulas`` is missing for
+        ``"simple_from_molecules"``.
+    NotImplementedError
+        For ``mode="simple_from_molecules"`` (not yet implemented).
+    """
     kwargs.pop("rel_error", None)
     kwargs.pop("sign", None)
     kwargs.pop("mass_min", None)
@@ -575,9 +856,22 @@ def assign_formulas(
 # ===========================================================================
 
 def _find_peak(mz_array, target_mz, ppm_tol):
-    """
-    Найти индекс ближайшего пика в mz_array к target_mz с точностью ppm_tol.
-    Возвращает int или None.
+    """Find the peak in ``mz_array`` closest to ``target_mz`` within tolerance.
+
+    Parameters
+    ----------
+    mz_array : array-like of float
+        Candidate m/z values to search.
+    target_mz : float
+        Target m/z to match.
+    ppm_tol : float
+        Maximum allowed deviation (ppm).
+
+    Returns
+    -------
+    int or None
+        Index of the closest peak within ``ppm_tol``, or ``None`` if none
+        falls within tolerance.
     """
     mz = pd.Series(mz_array)
     diffs_ppm = (mz - target_mz).abs() / target_mz * 1e6
@@ -596,47 +890,52 @@ def find_series(
     allow_gaps=True,
     min_series_length=1,
 ):
-    """
-    Найти серии дейтериационных пиков.
+    """Detect homologous derivatization series in a labelled spectrum.
 
-    Для каждого назначенного пика m_0 ищет цепочку:
-        m_0 + 1*delta,  m_0 + 2*delta,  ...,  m_0 + n*delta
-    в дериватизированном спектре.
+    For each assigned source peak ``m_0``, searches the derivatized spectrum
+    for the chain ``m_0 + 1*delta, m_0 + 2*delta, ..., m_0 + n*delta``. The
+    number of steps found equals the number of reactive functional groups
+    (-COOH for ``DELTA_CD3``, -OH for ``DELTA_CD3CO``).
 
-    Правило определения длины серии
-    ---------------------------------
-    Длина серии = последний НАЙДЕННЫЙ шаг (1-based).
-    Если между первым и последним шагами есть пропуски,
-    они фиксируются в поле missing.
-    Логика: "видим 1,2,3,5 -> считаем серию длиной 5".
-
-    Параметры
-    ---------
-    src : Spectrum
-        Исходный спектр с назначенными формулами.
-    deriv : Spectrum
-        Спектр дериватизированного образца.
-    delta : float
-        Ожидаемый сдвиг m/z на одну функциональную группу (Da).
-    ppm_tol : float
-        Допустимая погрешность совпадения масс (ppm).
-    max_groups : int
-        Максимально возможное число функциональных групп на молекулу.
-    allow_gaps : bool
-        True  — продолжать поиск при пропуске (рекомендуется).
-        False — обрывать серию на первом пропуске.
-    min_series_length : int
-        Минимальная длина серии для включения в вывод.
-
-    Возвращает
+    Parameters
     ----------
-    DataFrame:
-        mass_src    — m/z пика в исходном спектре
-        brutto      — назначенная брутто-формула
-        n_groups    — длина серии (по последнему найденному шагу)
-        steps_found — список найденных шагов (1-based)
-        missing     — список пропущенных шагов ВНУТРИ серии
-        series_mz   — список m/z для шагов 1..n_groups (None = пропуск)
+    src : nomspectra.spectrum.Spectrum
+        Source spectrum with assigned formulas (needs ``brutto``, ``mass``,
+        ``assign`` columns).
+    deriv : nomspectra.spectrum.Spectrum
+        Derivatized-sample spectrum (needs ``mass``, ``intensity`` columns).
+    delta : float
+        Expected m/z shift per functional group (Da), e.g. ``DELTA_CD3``.
+    ppm_tol : float, optional
+        Mass-match tolerance (ppm). Must be > 0. Default 5.0.
+    max_groups : int, optional
+        Maximum number of functional groups (series steps) to probe.
+        Default 20.
+    allow_gaps : bool, optional
+        If ``True`` (recommended), keep searching past a missing step;
+        if ``False``, stop the series at the first gap. Default ``True``.
+    min_series_length : int, optional
+        Minimum series length required to emit a record. Default 1.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per detected series with columns: ``mass_src``, ``brutto``,
+        ``n_groups`` (length by last found step), ``steps_found`` (1-based
+        list), ``missing`` (skipped steps inside the series), ``series_mz``
+        (m/z per step 1..n_groups, ``None`` for a gap).
+
+    Raises
+    ------
+    ValueError
+        If ``ppm_tol <= 0``, if ``max_groups``/``min_series_length`` are
+        below 1, or if required columns are missing from ``src``/``deriv``.
+
+    Notes
+    -----
+    The series length is the last *found* step (1-based): observing steps
+    1, 2, 3, 5 yields ``n_groups = 4`` recorded as length 5 with step 4
+    listed under ``missing``.
     """
 
     if ppm_tol <= 0:
@@ -716,23 +1015,29 @@ def find_series(
 # ===========================================================================
 
 def build_result_table(src, df_dmet, df_dacet):
-    """
-    Собрать итоговую таблицу с числом -COOH и -OH для каждой брутто-формулы.
+    """Assemble the final -COOH / -OH count table per brutto formula.
 
-    Логика:
-        N_COOH     = n_groups из df_dmet  (серия CD3,   delta = 17.034 Da)
-        N_OH = n_groups из df_dacet (серия CD3CO, delta = 45.029 Da)
-
-    Параметры
-    ---------
-    src : Spectrum
-    df_dmet : DataFrame — результат find_series() для дейтерометилирования.
-    df_dacet : DataFrame — результат find_series() для дейтероацилирования.
-
-    Возвращает
+    Parameters
     ----------
-    DataFrame: mass, intensity, brutto, N_COOH, N_OH_total, N_OH,
-               missing_dmet, missing_dacet
+    src : nomspectra.spectrum.Spectrum
+        Source spectrum with assigned formulas.
+    df_dmet : pandas.DataFrame
+        ``find_series`` output for deuteromethylation (CD3 series,
+        ``delta = DELTA_CD3``); its ``n_groups`` becomes ``N_COOH``.
+    df_dacet : pandas.DataFrame
+        ``find_series`` output for deuteroacylation (CD3CO series,
+        ``delta = DELTA_CD3CO``); its ``n_groups`` becomes ``N_OH``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns ``mass``, ``intensity``, ``brutto``, ``N_COOH``,
+        ``N_OH_total``, ``N_OH``, ``missing_dmet``, ``missing_dacet``,
+        sorted by mass. Peaks without a series get a count of 0.
+
+    Notes
+    -----
+    Source and series peaks are joined on m/z rounded to 4 decimals.
     """
     base = (
         src.table
@@ -787,25 +1092,38 @@ def visualize_series(
     ppm_tol=5.0,
     save_path=None,
 ):
-    """
-    Визуализировать серии с пропущенными пиками.
+    """Plot detected series, highlighting missing (gap) peaks.
 
-    Для каждого соединения строится лесенка ожидаемых пиков:
-        синий      — исходный пик (m_0)
-        зелёный    — найденный пик серии
-        красный -- — пропущенный ожидаемый пик
+    For each compound a ladder of expected peaks is drawn: blue = source
+    peak ``m_0``, green = found series peak, dashed red = missing expected
+    peak.
 
-    Параметры
-    ---------
-    src : Spectrum
-    deriv : Spectrum
-    df_series : DataFrame — результат find_series().
-    delta : float — шаг серии (Da).
-    label : str — подпись в заголовке.
-    max_rows : int — максимальное число соединений для отображения.
-    figsize_per_row : tuple — (ширина, высота) одной строки.
-    ppm_tol : float — допуск поиска (ppm).
-    save_path : str, optional — путь для сохранения рисунка.
+    Parameters
+    ----------
+    src : nomspectra.spectrum.Spectrum
+        Source spectrum.
+    deriv : nomspectra.spectrum.Spectrum
+        Derivatized-sample spectrum.
+    df_series : pandas.DataFrame
+        ``find_series`` output to visualize.
+    delta : float
+        Series step (Da).
+    label : str, optional
+        Title label. Default ``"series"``.
+    max_rows : int, optional
+        Maximum number of compounds to display. Default 15.
+    figsize_per_row : tuple of (float, float), optional
+        Per-row ``(width, height)`` in inches. Default ``(12, 1.4)``.
+    ppm_tol : float, optional
+        Search tolerance (ppm). Default 5.0.
+    save_path : str or None, optional
+        If given, the figure is saved to this path; otherwise it is shown.
+
+    Returns
+    -------
+    None
+        Only rows containing gaps are plotted; if none exist the function
+        returns after printing a message.
     """
     if df_series.empty:
         print(f"[{label}] Серии не найдены.")

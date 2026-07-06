@@ -41,9 +41,26 @@ PIPELINE_PARAMS = {
 
 # ----------------------------------------------------------------------
 def run_smoke_suite(data_root: Path, output_root: Path) -> SmokeSuiteResult:
-    """
-    Прогоняет полный smoke-тест по всем set_01..set_05.
-    Возвращает SmokeSuiteResult с итогами.
+    """Run the end-to-end smoke test over every ``set_*`` directory.
+
+    For each test set the full pipeline is executed and its artifacts
+    (result table, spectra overlay, homologous-series grids, -COOH/-OH
+    histograms and per-compound candidate structures) are exported. A
+    machine-readable summary is written at the end.
+
+    Parameters
+    ----------
+    data_root : pathlib.Path
+        Directory containing the ``set_*`` input folders.
+    output_root : pathlib.Path
+        Directory where per-set artifacts and the overall summary are
+        written.
+
+    Returns
+    -------
+    SmokeSuiteResult
+        Aggregated result; ``overall_success`` is ``True`` only if every
+        set succeeded.
     """
     suite = SmokeSuiteResult()
     suite.started_at = time.strftime('%Y-%m-%d %H:%M:%S')

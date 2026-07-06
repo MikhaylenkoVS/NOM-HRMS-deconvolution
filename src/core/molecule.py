@@ -4,7 +4,25 @@ from typing import List, Tuple, Dict
 
 
 class Molecule:
-    """Class representing a molecule"""
+    """A molecular graph of atoms and bonds.
+
+    Stores atoms and their connectivity, enforcing valence limits when bonds
+    are added. Provides derived chemical descriptors such as the molecular
+    formula (Hill notation) and the index of hydrogen deficiency (IHD).
+
+    Parameters
+    ----------
+    formula : str, optional
+        Human-readable formula label. Stored as-is; it is not parsed into
+        atoms. Default is an empty string.
+
+    Attributes
+    ----------
+    atoms : list of Atom
+        Atoms of the molecule, indexed by insertion order.
+    edges : list of tuple of (int, int, int)
+        Bonds as ``(atom1_index, atom2_index, bond_order)`` triples.
+    """
 
     def __init__(self, formula: str = ""):
         self.formula = formula          # stored label, not parsed into atoms
@@ -12,19 +30,41 @@ class Molecule:
         self.edges: List[Tuple[int, int, int]] = []
 
     def add_atom(self, symbol: str, formal_charge: int = 0) -> int:
-        """Add an atom to the molecule. Returns the new atom's index."""
+        """Add an atom to the molecule.
+
+        Parameters
+        ----------
+        symbol : str
+            Chemical element symbol of the new atom.
+        formal_charge : int, optional
+            Formal charge on the atom. Default is 0.
+
+        Returns
+        -------
+        int
+            Index of the newly created atom.
+        """
         atom_number = len(self.atoms)
         atom = Atom(symbol, atom_number, formal_charge)
         self.atoms.append(atom)
         return atom_number
 
     def add_bond(self, atom1: int, atom2: int, bond_order: int = 1) -> None:
-        """
-        Add a bond between two atoms with full pre‑validation.
-        The bond is only added if:
-          - both indices are valid and different,
-          - the bond does not already exist,
-          - each atom has enough remaining valence.
+        """Add a bond between two atoms with full pre-validation.
+
+        Parameters
+        ----------
+        atom1, atom2 : int
+            Indices of the two atoms to connect.
+        bond_order : int, optional
+            Bond order (1 = single, 2 = double, 3 = triple). Default is 1.
+
+        Notes
+        -----
+        The bond is added only if all of the following hold: both indices are
+        in range and distinct, the bond does not already exist, and each atom
+        has enough remaining valence. Otherwise the call is a silent no-op,
+        leaving the molecule unchanged.
         """
         # Индексы должны быть в допустимом диапазоне
         if atom1 >= len(self.atoms) or atom2 >= len(self.atoms):
@@ -52,7 +92,15 @@ class Molecule:
         self.edges.append((atom1, atom2, bond_order))
 
     def is_connected(self) -> bool:
-        """Check if the molecular graph is fully connected (DFS)."""
+        """Test whether the molecular graph is a single connected component.
+
+        Returns
+        -------
+        bool
+            ``True`` if every atom is reachable from atom 0 by a
+            depth-first traversal (an empty molecule counts as connected),
+            ``False`` otherwise.
+        """
         if not self.atoms:
             return True
 
@@ -69,7 +117,19 @@ class Molecule:
         return len(visited) == len(self.atoms)
 
     def calculate_IHD(self) -> float:
-        """Index of Hydrogen Deficiency (IHD), or degree of unsaturation."""
+        """Compute the index of hydrogen deficiency (IHD) of the molecule.
+
+        Returns
+        -------
+        float
+            The IHD (degree of unsaturation), clamped to be non-negative.
+
+        Notes
+        -----
+        IHD (also called DBE, double-bond equivalent) counts rings plus
+        pi-bonds and is computed as ``(2*C + 2 - H + N - X) / 2``, where
+        ``X`` is the total number of halogen atoms (F, Cl, Br, I).
+        """
         element_count = defaultdict(int)
         for atom in self.atoms:
             element_count[atom.symbol] += 1
@@ -84,7 +144,15 @@ class Molecule:
         return max(0.0, IHD)
 
     def get_formula(self) -> str:
-        """Return the molecular formula in Hill notation."""
+        """Return the molecular formula in Hill notation.
+
+        Returns
+        -------
+        str
+            Formula string with carbon first, hydrogen second, and the
+            remaining elements in alphabetical order (e.g. ``"C7H6O2"``).
+            If no carbon is present, all elements are alphabetical.
+        """
         element_count = defaultdict(int)
         for atom in self.atoms:
             element_count[atom.symbol] += 1
@@ -103,10 +171,18 @@ class Molecule:
         return "".join(parts)
 
     def to_smiles(self) -> str:
-        """
-        Generate a SMILES string for the molecule.
-        (Proper implementation requires a full canonicalisation algorithm;
-        currently not implemented.)
+        """Generate a SMILES string for the molecule.
+
+        Returns
+        -------
+        str
+            The SMILES representation (not yet available).
+
+        Raises
+        ------
+        NotImplementedError
+            Always. A full canonicalization algorithm is required; use
+            :meth:`get_formula` for a string representation instead.
         """
         raise NotImplementedError(
             "Full SMILES generation is not yet implemented. "
@@ -119,9 +195,20 @@ class Molecule:
 
 
 def parse_formula(formula: str) -> Dict[str, int]:
-    """Parse a molecular formula string into {element: count}.
+    """Parse a molecular formula string into element counts.
 
-    Example: 'C7H6O2' -> {'C': 7, 'H': 6, 'O': 2}
+    Parameters
+    ----------
+    formula : str
+        Molecular formula, e.g. ``"C7H6O2"``. Element symbols may be one
+        upper-case letter optionally followed by a lower-case letter;
+        an omitted count is treated as 1.
+
+    Returns
+    -------
+    dict of {str: int}
+        Mapping of element symbol to atom count,
+        e.g. ``{'C': 7, 'H': 6, 'O': 2}``.
     """
     import re
     elems = defaultdict(int)
@@ -133,10 +220,19 @@ def parse_formula(formula: str) -> Dict[str, int]:
 
 
 def calculate_IHD(formula: Dict[str, int]) -> float:
-    """Calculate Index of Hydrogen Deficiency (IHD) from a formula dict.
+    """Compute the index of hydrogen deficiency (IHD) from a formula dict.
 
-    IHD = (2*C + 2 + N - H - X) / 2
-    where X = total halogens (F, Cl, Br, I)
+    Parameters
+    ----------
+    formula : dict of {str: int}
+        Element counts, e.g. ``{'C': 7, 'H': 6, 'O': 2}``.
+
+    Returns
+    -------
+    float
+        The IHD (degree of unsaturation), computed as
+        ``(2*C + 2 + N - H - X) / 2`` where ``X`` is the total number of
+        halogen atoms (F, Cl, Br, I). Not clamped to be non-negative.
     """
     C = formula.get('C', 0)
     H = formula.get('H', 0)
@@ -146,6 +242,22 @@ def calculate_IHD(formula: Dict[str, int]) -> float:
 
 
 def add_formula(base: Dict[str, int], delta: Dict[str, int], k: int = 1) -> None:
-    """Add delta multiplied by k to base (in-place)."""
+    """Add a scaled formula into another formula, in place.
+
+    Parameters
+    ----------
+    base : dict of {str: int}
+        Formula to be modified in place; receives the added counts.
+    delta : dict of {str: int}
+        Formula whose element counts are added to ``base``.
+    k : int, optional
+        Integer multiplier applied to ``delta`` before adding
+        (e.g. number of derivatization groups). Default is 1.
+
+    Returns
+    -------
+    None
+        ``base`` is modified in place.
+    """
     for elem, count in delta.items():
         base[elem] = base.get(elem, 0) + count * k

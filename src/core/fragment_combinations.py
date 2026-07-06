@@ -12,6 +12,23 @@ from rdkit.Chem import Draw, AllChem
 from .molecule import parse_formula, add_formula
 
 def filter_fragments(target_heavy, target_ihd, fragment_library):
+    """Keep only fragments that can fit inside the target formula and IHD.
+
+    Parameters
+    ----------
+    target_heavy : dict of {str: int}
+        Heavy-atom element counts still available in the target.
+    target_ihd : float
+        Maximum allowed index of hydrogen deficiency for a fragment.
+    fragment_library : dict
+        Mapping of fragment name to its metadata (``heavy_formula``, ``ihd``).
+
+    Returns
+    -------
+    dict
+        Subset of ``fragment_library`` whose fragments do not exceed the
+        target in IHD or in any element count.
+    """
     filtered = {}
     for name, f in fragment_library.items():
         hf = f["heavy_formula"]
@@ -33,6 +50,34 @@ def filter_fragments(target_heavy, target_ihd, fragment_library):
 def find_fragment_combinations(target_heavy_formula, target_ihd,
                                num_cooh=0, num_oh=0,
                                max_bases=10):
+    """Enumerate fragment multisets matching a target formula and IHD.
+
+    Reserves the atoms and unsaturation contributed by the requested -COOH
+    and -OH groups, then uses backtracking to find every combination of
+    skeletal base fragments whose summed heavy formula and IHD exactly match
+    the remainder.
+
+    Parameters
+    ----------
+    target_heavy_formula : dict of {str: int}
+        Heavy-atom element counts of the whole target molecule.
+    target_ihd : float
+        Target index of hydrogen deficiency.
+    num_cooh : int, optional
+        Number of carboxyl groups to place. Default 0.
+    num_oh : int, optional
+        Number of hydroxyl groups to place. Default 0.
+    max_bases : int, optional
+        Maximum total number of base fragments per combination. Default 10.
+
+    Returns
+    -------
+    list of dict
+        One entry per valid combination, each with keys ``bases``
+        (fragment-name to count), ``cooh``, ``oh``, ``total_heavy_formula``
+        and ``total_ihd``. Empty if the functional groups already exceed the
+        target.
+    """
     results = []
 
     # учёт функциональных групп
@@ -129,25 +174,30 @@ def find_fragment_combinations(target_heavy_formula, target_ihd,
 
 def assemble_molecule_from_combination(combination: dict,
                                        fragment_library_dict: dict = None) -> MoleculeFragment:
-    """Собирает полную молекулу из комбинации фрагментов.
+    """Assemble one complete molecule from a fragment combination.
 
-    Процесс сборки:
-    1. Выделяет базовые фрагменты (всё кроме COOH и OH)
-    2. Последовательно соединяет базовые фрагменты
-    3. Добавляет COOH группы на свободные точки
-    4. Добавляет OH группы на свободные точки
+    Connects the base fragments sequentially, then attaches the requested
+    -COOH and -OH groups to remaining free attachment points.
 
-    Args:
-        combination: словарь с результатом find_fragment_combinations
-                    {'bases': {'benzene': 1}, 'cooh': 1, 'oh': 0, ...}
-        fragment_library_dict: словарь {name: factory_function}
-                              По умолчанию использует ALL_FRAGMENTS
+    Parameters
+    ----------
+    combination : dict
+        A combination from :func:`find_fragment_combinations`, e.g.
+        ``{'bases': {'benzene': 1}, 'cooh': 1, 'oh': 0, ...}``.
+    fragment_library_dict : dict, optional
+        Mapping of fragment name to factory function. Defaults to
+        ``ALL_FRAGMENTS``.
 
-    Returns:
-        MoleculeFragment - собранная молекула
+    Returns
+    -------
+    MoleculeFragment
+        The assembled molecule.
 
-    Raises:
-        ValueError: если не хватает свободных точек присоединения
+    Raises
+    ------
+    ValueError
+        If a fragment name is unknown, the combination is empty, or there
+        are not enough free attachment points to place all groups.
     """
     if fragment_library_dict is None:
         fragment_library_dict = ALL_FRAGMENTS
@@ -216,14 +266,22 @@ def assemble_molecule_from_combination(combination: dict,
 
 def assemble_all_combinations(combinations: list,
                               fragment_library_dict: dict = None) -> list:
-    """Собирает молекулы из всех найденных комбинаций.
+    """Assemble molecules from every combination, capturing failures.
 
-    Args:
-        combinations: список результатов find_fragment_combinations
-        fragment_library_dict: словарь фабричных функций
+    Parameters
+    ----------
+    combinations : list of dict
+        Combinations from :func:`find_fragment_combinations`.
+    fragment_library_dict : dict, optional
+        Mapping of fragment name to factory function. Defaults to
+        ``ALL_FRAGMENTS``.
 
-    Returns:
-        Список собранных MoleculeFragment объектов
+    Returns
+    -------
+    list of dict
+        One entry per combination with keys ``index``, ``combination``,
+        ``molecule`` (a :class:`MoleculeFragment` or ``None``) and
+        ``success``; failed entries additionally carry an ``error`` message.
     """
     if fragment_library_dict is None:
         fragment_library_dict = ALL_FRAGMENTS
@@ -255,37 +313,38 @@ def find_and_visualize_molecules(brutto_formula: str,
                                  max_bases: int = 10,
                                  show_images: bool = True,
                                  image_size: tuple = (400, 300)):
-    """Итоговая функция: от брутто-формулы до визуализации молекул.
+    """Go from a brutto formula to assembled (and optionally drawn) molecules.
 
-    Выполняет полный цикл:
-    1. Парсит брутто-формулу
-    2. Вычисляет IHD
-    3. Находит все возможные комбинации фрагментов
-    4. Собирает молекулы из комбинаций
-    5. Визуализирует структуры (если установлен RDKit)
+    Runs the full candidate-structure cycle: parse the formula, compute IHD,
+    enumerate fragment combinations, assemble molecules, and optionally render
+    2D depictions with RDKit.
 
-    Args:
-        brutto_formula: брутто-формула (например, "C7H6O2")
-        num_cooh: количество COOH групп
-        num_oh: количество OH групп
-        max_bases: максимальное количество базовых фрагментов
-        show_images: показывать ли изображения (требуется RDKit)
-        image_size: размер изображений (ширина, высота)
+    Parameters
+    ----------
+    brutto_formula : str
+        Molecular formula, e.g. ``"C7H6O2"``.
+    num_cooh : int, optional
+        Number of carboxyl groups. Default 0.
+    num_oh : int, optional
+        Number of hydroxyl groups. Default 0.
+    max_bases : int, optional
+        Maximum number of base fragments per combination. Default 10.
+    show_images : bool, optional
+        Whether to render RDKit images. Default ``True``.
+    image_size : tuple of (int, int), optional
+        Image size in pixels ``(width, height)``. Default ``(400, 300)``.
 
-    Returns:
-        dict с ключами:
-            - 'input': входные данные
-            - 'heavy_formula': формула тяжёлых атомов
-            - 'ihd': индекс ненасыщенности
-            - 'combinations': найденные комбинации фрагментов
-            - 'molecules': список собранных молекул с метаданными
-            - 'images': список PIL изображений (если show_images=True)
+    Returns
+    -------
+    dict
+        Keys: ``input`` (echoed arguments), ``heavy_formula``, ``ihd``,
+        ``combinations``, ``molecules`` (assembled structures with metadata),
+        and ``images`` (PIL images when ``show_images`` is True).
 
-    Пример:
-        result = find_and_visualize_molecules("C7H6O2", num_cooh=1, num_oh=0)
-        print(f"Найдено {len(result['molecules'])} структур")
-        for mol in result['molecules']:
-        print(f"  - {mol['name']}: {mol['formula']}")
+    Notes
+    -----
+    IHD is computed as ``(2*C + 2 - H + N - X) / 2`` where ``X`` is the total
+    halogen count. Progress is printed to stdout.
     """
 
     # === ШАГ 2: Вычисление тяжёлой формулы и IHD ===

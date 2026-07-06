@@ -1,15 +1,16 @@
-"""Генератор синтетических тестовых наборов MS-спектров для NOM-подобных смесей.
+"""Generate synthetic MS test sets for NOM-like mixtures.
 
-Положение файла:
-    AnalyticsSpectra/Генерация тестовых спектров/tools/generate_test_sets.py
+Builds the ``original``/``deutermethylated``/``deuteroacylated`` spectra
+for each ``set_01``..``set_05`` from a per-set ``molecules.csv``, applies a
+configurable ppm mass error and additive noise, and writes the spectra and
+annotation tables under ``data/test_sets``.
 
-Предполагаемый запуск:
-    из директории AnalyticsSpectra/Генерация тестовых спектров/tools
-    командой `python generate_test_sets.py`.
-
-При таком запуске:
-- корень подпроекта генератора — AnalyticsSpectra/Генерация тестовых спектров;
-- данные и тестовые наборы лежат в поддиректории `data/test_sets` внутри подпроекта.
+Notes
+-----
+The per-group mass shifts in the default config (``15.0`` Da for
+deuteromethylation of -COOH, ``45.0`` Da for deuteroacylation of -OH) are
+rounded placeholders for the exact deltas used by the analysis pipeline
+(``DELTA_CD3`` = 17.03448 Da, ``DELTA_CD3CO`` = 45.02939 Da).
 """
 
 from pathlib import Path
@@ -41,10 +42,22 @@ element_masses: Dict[str, float] = {
 }
 
 def parse_formula(formula: str) -> Dict[str, int]:
-    """Простейший парсер брутто-формулы вида C7H6O5.
+    """Parse a simple brutto formula such as ``C7H6O5``.
 
-    Возвращает словарь {элемент: количество}.
-    Поддерживает только формулы без скобок и зарядов.
+    Parameters
+    ----------
+    formula : str
+        Molecular formula without brackets or charges.
+
+    Returns
+    -------
+    dict of {str: int}
+        Mapping of element symbol to atom count.
+
+    Raises
+    ------
+    ValueError
+        If the formula is empty or cannot be fully parsed.
     """
 
     import re
@@ -69,10 +82,23 @@ def parse_formula(formula: str) -> Dict[str, int]:
     return composition
 
 def exact_mass_from_formula(formula: str) -> float:
-    """Рассчитать точную (моноизотопную) массу по брутто-формуле.
+    """Compute the monoisotopic mass of a brutto formula.
 
-    Использует словарь element_masses и парсер parse_formula.
-    Поддерживает только формулы без скобок и зарядов.
+    Parameters
+    ----------
+    formula : str
+        Molecular formula without brackets or charges.
+
+    Returns
+    -------
+    float
+        Monoisotopic mass in Da, using :data:`element_masses`.
+
+    Raises
+    ------
+    ValueError
+        If the formula contains an element absent from
+        :data:`element_masses`.
     """
 
     composition = parse_formula(formula)
@@ -84,14 +110,29 @@ def exact_mass_from_formula(formula: str) -> float:
     return mass
 
 def load_molecules_for_set(set_path: Path) -> pd.DataFrame:
+    """Load the ``molecules.csv`` table for one test set.
+
+    Parameters
+    ----------
+    set_path : pathlib.Path
+        Directory of the test set.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Contents of ``molecules.csv``.
+    """
     df = pd.read_csv(set_path / "molecules.csv")
     return df
 
 def init_test_sets_structure() -> None:
-    """Создать базовую файловую структуру для тестовых наборов.
+    """Create the base directory layout for the test sets.
 
-    Создаёт папки set_01–set_05 внутри
-    `AnalyticsSpectra/Генерация тестовых спектров/data/test_sets/`.
+    Returns
+    -------
+    None
+        Creates ``set_01``..``set_05`` folders under
+        :data:`TEST_SETS_ROOT`.
     """
 
     for i in range(1, 6):
@@ -99,10 +140,18 @@ def init_test_sets_structure() -> None:
         set_dir.mkdir(parents=True, exist_ok=True)
 
 def load_or_create_config(set_dir: Path) -> Dict[str, Any]:
-    """Загрузить или создать config.json для заданного набора.
+    """Load a test set's ``config.json``, creating a default if absent.
 
-    Если файл существует, вернуть его содержимое.
-    Если нет — создать дефолтный config.json и вернуть его как словарь.
+    Parameters
+    ----------
+    set_dir : pathlib.Path
+        Directory of the test set.
+
+    Returns
+    -------
+    dict
+        Parsed configuration (mass range, ppm-error model, intensity,
+        noise, derivatization shifts and adducts).
     """
 
     config_path = set_dir / "config.json"
@@ -163,12 +212,17 @@ def load_or_create_config(set_dir: Path) -> Dict[str, Any]:
     return default_config
 
 def generate_all_test_sets(overwrite: bool = False) -> None:
-    """Сгенерировать все тестовые наборы (set_01–set_05).
+    """Generate every test set (``set_01``..``set_05``).
 
-    Параметры
-    ---------
-    overwrite : bool
-        Если True, существующие файлы в наборах могут быть перезаписаны.
+    Parameters
+    ----------
+    overwrite : bool, optional
+        If ``True`` existing files in the sets may be overwritten.
+        Default ``False``.
+
+    Returns
+    -------
+    None
     """
 
     for i in range(1, 6):
@@ -180,14 +234,30 @@ def generate_spectra_for_set(
     molecules: List[Dict[str, Any]],
     config: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Сгенерировать спектры original, deutermethylated, deuteroacylated для набора.
+    """Build original/deutermethylated/deuteroacylated spectra for a set.
 
-    Источник молекул: molecules (список dict'ов из molecules.csv).
-    Логика:
-    - original: один пик на молекулу (mass = exact_mass_from_formula);
-    - deutermethylated: исходный пик + все степени дейтерометилирования по -COOH;
-    - deuteroacylated: исходный пик + все степени дейтероацилирования по -OH;
-    - mass shift и целевые группы задаются в config['derivatization'].
+    Parameters
+    ----------
+    set_id : str
+        Identifier of the test set (e.g. ``"set_01"``).
+    molecules : list of dict
+        Molecule records (from ``molecules.csv``).
+    config : dict
+        Set configuration; per-group mass shifts come from
+        ``config["derivatization"]``.
+
+    Returns
+    -------
+    dict
+        Mapping ``spectrum_type -> list of peak records``. The original
+        spectrum has one peak per molecule; the derivatized spectra add
+        one peak per derivatization degree (0..n) for -COOH and -OH
+        respectively.
+
+    Notes
+    -----
+    This is the initial implementation; it is superseded later in the
+    module by a version that also injects noise peaks.
     """
 
     spectra: Dict[str, list[Dict[str, Any]]] = {
@@ -321,9 +391,28 @@ def generate_spectra_for_set(
     return spectra
 
 def generate_single_test_set(set_id: str, overwrite: bool = False) -> None:
-    """Сгенерировать один тестовый набор.
+    """Generate one test set from its ``molecules.csv``.
 
-    Источник молекул: data/test_sets/<set_id>/molecules.csv.
+    Loads (or creates) the config, computes masses if missing, generates
+    theoretical spectra, applies the ppm mass error and writes the spectra
+    and annotation CSVs.
+
+    Parameters
+    ----------
+    set_id : str
+        Identifier of the test set (e.g. ``"set_01"``).
+    overwrite : bool, optional
+        If ``True`` existing output files may be overwritten. Default
+        ``False``.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    FileNotFoundError
+        If the set has no ``molecules.csv``.
     """
 
     set_dir = TEST_SETS_ROOT / set_id
@@ -375,13 +464,24 @@ def generate_spectra_for_set(
     molecules: List[Dict[str, Any]],
     config: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Сгенерировать спектры original, deutermethylated, deuteroacylated.
+    """Build original/derivatized spectra for a set, including noise.
 
-    Новая логика:
-    - original: один пик на молекулу;
-    - deutermethylated: исходный пик + все степени дейтерометилирования (0..nCOOH);
-    - deuteroacylated: исходный пик + все степени дейтероацилирования (0..nOH);
-    - mass shift и целевые группы берутся из config["derivatization"].
+    Parameters
+    ----------
+    set_id : str
+        Identifier of the test set (e.g. ``"set_01"``).
+    molecules : list of dict
+        Molecule records (from ``molecules.csv``).
+    config : dict
+        Set configuration; per-group mass shifts and noise settings come
+        from ``config["derivatization"]`` and ``config["noise"]``.
+
+    Returns
+    -------
+    dict
+        Mapping ``spectrum_type -> list of peak records``. Signal peaks
+        carry ``is_signal=True``; additive noise peaks (``is_signal=False``)
+        are appended to each spectrum.
     """
 
     spectra: Dict[str, list[Dict[str, Any]]] = {
@@ -527,6 +627,22 @@ def generate_spectra_for_set(
     return spectra
 
 def write_molecules_csv(set_dir: Path, molecules: List[Dict[str, Any]], overwrite: bool = False) -> None:
+    """Write the ``molecules.csv`` table for a test set.
+
+    Parameters
+    ----------
+    set_dir : pathlib.Path
+        Directory of the test set.
+    molecules : list of dict
+        Molecule records; only the canonical fields are written, extra
+        keys (``source``, ``pubchem_cid``, ...) are ignored.
+    overwrite : bool, optional
+        If ``False`` (default) an existing file is left untouched.
+
+    Returns
+    -------
+    None
+    """
     file_path = set_dir / "molecules.csv"
     if file_path.exists() and not overwrite:
         return
@@ -561,7 +677,23 @@ def write_molecules_csv(set_dir: Path, molecules: List[Dict[str, Any]], overwrit
             writer.writerow(row)
 
 def write_spectra_csv(set_dir: Path, spectra: Dict[str, Any], overwrite: bool = False) -> None:
-    """Записать файлы спектров (original.csv, deutermethylated.csv, deuteroacylated.csv)."""
+    """Write the three spectrum CSVs (``mass``/``intensity`` columns).
+
+    Parameters
+    ----------
+    set_dir : pathlib.Path
+        Directory of the test set.
+    spectra : dict
+        Mapping ``spectrum_type -> list of peak records``.
+    overwrite : bool, optional
+        If ``False`` (default) existing files are left untouched.
+
+    Returns
+    -------
+    None
+        Writes ``original.csv``, ``deutermethylated.csv`` and
+        ``deuteroacylated.csv``.
+    """
 
     def _write_single_spectrum(filename: str, records: List[Dict[str, Any]] | None) -> None:
         file_path = set_dir / filename
@@ -591,12 +723,21 @@ def apply_observed_mass_to_spectra(
     spectra: dict[str, list[dict]],
     config: dict,
 ) -> dict[str, list[dict]]:
-    """Применить ppm-ошибку ко всем пикам в spectra.
+    """Apply the ppm mass error to every peak in a spectra dict.
 
-    На выходе:
-    - rec["mass"]           = mass_obs (то, что уйдёт в *.csv)
-    - rec["mass_theor"]     = исходная теоретическая масса
-    - rec["mass_error_ppm"] = ошибка в ppm
+    Parameters
+    ----------
+    spectra : dict of {str: list of dict}
+        Mapping ``spectrum_type -> list of peak records``.
+    config : dict
+        Configuration providing the ``ppm_error`` model.
+
+    Returns
+    -------
+    dict of {str: list of dict}
+        New spectra where each record has ``mass`` set to the observed
+        mass, ``mass_theor`` to the original theoretical mass, and
+        ``mass_error_ppm`` to the applied error in ppm.
     """
 
     new_spectra: dict[str, list[dict]] = {
@@ -628,11 +769,22 @@ def apply_observed_mass_to_spectra(
     return new_spectra
 
 def apply_mass_error(mass_theor: float, config: Dict[str, Any]) -> tuple[float, float]:
-    """Добавить небольшую массовую ошибку (ppm) к теоретической массе.
+    """Add a small ppm-scale mass error to a theoretical mass.
 
-    Возвращает:
-    - mass_obs: наблюдаемая масса
-    - error_ppm: ошибка в ppm (mass_obs - mass_theor) / mass_theor * 1e6
+    Parameters
+    ----------
+    mass_theor : float
+        Theoretical (exact) mass in Da.
+    config : dict
+        Configuration providing the ``ppm_error`` model (``type``,
+        ``mean``, ``std``, ``max_abs``).
+
+    Returns
+    -------
+    mass_obs : float
+        Observed mass in Da after applying the error.
+    error_ppm : float
+        Applied error in ppm, clamped to ``±max_abs``.
     """
 
     ppm_cfg = config.get("ppm_error", {})
@@ -659,9 +811,25 @@ def generate_noise_peaks(
     set_id: str,
     max_signal_intensity: float,
 ) -> List[Dict[str, Any]]:
-    """Сгенерировать шумовые пики для спектра.
+    """Generate additive noise peaks for a spectrum.
 
-    Параметры берём из config["noise"] и config["mass_range"].
+    Parameters
+    ----------
+    config : dict
+        Configuration providing ``noise`` and ``mass_range`` settings.
+    spectrum_type : str
+        Spectrum the peaks belong to (``"original"`` etc.).
+    set_id : str
+        Identifier of the test set.
+    max_signal_intensity : float
+        Reference intensity; noise intensities are drawn up to
+        ``intensity_fraction_max`` of this value.
+
+    Returns
+    -------
+    list of dict
+        Noise peak records (``is_signal=False``); empty if the configured
+        peak count is non-positive.
     """
 
     noise_cfg = config.get("noise", {})
@@ -705,12 +873,26 @@ def write_annotations_csv(
     molecules: List[Dict[str, Any]],
     overwrite: bool = False,
 ) -> None:
-    """Записать annotations.csv для заданного набора.
+    """Write the ``annotations.csv`` ground-truth table for a set.
 
-    Предполагается, что:
-    - rec["mass"]         уже содержит mass_obs,
-    - rec["mass_theor"]   содержит теоретическую массу,
-    - rec["mass_error_ppm"] содержит ошибку в ppm.
+    Parameters
+    ----------
+    set_dir : pathlib.Path
+        Directory of the test set.
+    spectra : dict
+        Mapping ``spectrum_type -> list of peak records``, where each
+        record already carries ``mass`` (observed), ``mass_theor`` and
+        ``mass_error_ppm``.
+    molecules : list of dict
+        Molecule records (currently unused but kept for symmetry).
+    overwrite : bool, optional
+        If ``False`` (default) an existing file is left untouched.
+
+    Returns
+    -------
+    None
+        Peaks are annotated as ``[M-H]-`` (charge ``-1``) and written with
+        a generated ``peak_id``.
     """
 
     file_path = set_dir / "annotations.csv"
@@ -775,6 +957,15 @@ def write_annotations_csv(
                 )
 
 def normalize_molecules_header_for_all_sets() -> None:
+    """Rewrite every set's ``molecules.csv`` with a canonical header.
+
+    Missing columns are filled with ``None`` so all sets share the same
+    schema; sets without a ``molecules.csv`` are skipped with a message.
+
+    Returns
+    -------
+    None
+    """
     expected_header = [
         "set_id",
         "compound_id",

@@ -87,9 +87,19 @@ except Exception as _core_err:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class _QueueWriter:
-    """
-    Направляет write() в очередь и параллельно в оригинальный поток.
-    Безопасен для вызовов из любого потока.
+    """Thread-safe stream shim that tees writes to a queue and a stream.
+
+    Used to redirect ``sys.stdout``/``sys.stderr`` so that ``print``
+    output from the pipeline (which may run in a worker thread) is
+    delivered to the GUI log via a queue while still reaching the original
+    stream.
+
+    Parameters
+    ----------
+    q : queue.Queue
+        Queue that receives ``("log", text)`` items.
+    original : io.TextIOBase, optional
+        Underlying stream to also forward writes to. Default ``None``.
     """
     def __init__(self, q: queue.Queue, original=None):
         self._q = q
@@ -122,6 +132,20 @@ class _QueueWriter:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class App(tk.Tk):
+    """Main Tkinter window for the -COOH/-OH functional-group analyzer.
+
+    Provides a tabbed interface to load the three input spectra
+    (underivatized, deuteromethylated, deuteroacylated), configure and run
+    the deconvolution pipeline in a background thread, and inspect the
+    results as spectra plots, homologous-series diagrams, per-compound
+    histograms, a results table and (optionally) candidate structures.
+
+    Notes
+    -----
+    The heavy work runs on a worker thread; ``stdout``/``stderr`` are
+    redirected through :class:`_QueueWriter` so pipeline messages appear in
+    the GUI log without blocking the Tk event loop.
+    """
 
     # ── init ──────────────────────────────────────────────────────────────────
 

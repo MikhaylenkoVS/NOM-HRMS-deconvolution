@@ -1,3 +1,9 @@
+"""Filter PubChem candidates into balanced NOM-like reference sets.
+
+Reads a raw PubChem export, keeps neutral CHNO-only molecules, computes
+Van Krevelen ratios (H/C, O/C) and a NOM-like flag, plots the diagram and
+splits the survivors into five balanced ``molecules.csv`` test sets.
+"""
 from pathlib import Path
 from typing import Dict
 import numpy as np
@@ -13,7 +19,23 @@ OUTPUT_VK_PATH = REF_DIR / "ref_molecules_all_pubchem_filtered.csv"
 VK_PLOT_PATH = REF_DIR / "van_krevelen_nom_like.png"
 
 def parse_formula(formula: str) -> Dict[str, int]:
-    """Разобрать брутто-формулу в словарь {элемент: количество}."""
+    """Parse a brutto formula into an ``{element: count}`` dict.
+
+    Parameters
+    ----------
+    formula : str
+        Molecular formula without brackets or charges.
+
+    Returns
+    -------
+    dict of {str: int}
+        Element counts; empty dict for empty/non-string input.
+
+    Raises
+    ------
+    RuntimeError
+        If the formula has an unparsed trailing segment.
+    """
 
     if not isinstance(formula, str) or not formula:
         return {}
@@ -37,7 +59,23 @@ def parse_formula(formula: str) -> Dict[str, int]:
 
 
 def is_chno_only(formula: str) -> bool:
-    """Проверить, что формула содержит только C, H, N, O."""
+    """Return whether a formula contains only C, H, N and O.
+
+    Parameters
+    ----------
+    formula : str
+        Molecular formula.
+
+    Returns
+    -------
+    bool
+        ``True`` if every element is one of C/H/N/O.
+
+    Raises
+    ------
+    ValueError
+        If the formula cannot be parsed.
+    """
 
     comp = parse_formula(formula)
     if not comp:
@@ -48,6 +86,14 @@ def is_chno_only(formula: str) -> bool:
     return all(elem in allowed for elem in comp.keys())
 
 def filter_candidates() -> pd.DataFrame:
+    """Keep neutral, CHNO-only candidates from the raw PubChem export.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Filtered candidates; also written to
+        :data:`OUTPUT_FILTERED_PATH`.
+    """
     df = pd.read_csv(INPUT_PATH)
 
     # приведём charge к числу
@@ -86,6 +132,25 @@ def filter_candidates() -> pd.DataFrame:
 
 
 def add_van_krevelen_and_nom_flag(df: pd.DataFrame) -> pd.DataFrame:
+    """Add H/C, O/C ratios and a Van Krevelen NOM-like flag.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Candidates with a ``formula`` column.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Input frame with added ``H_C``, ``O_C``, ``nom_like_flag_vk`` and
+        ``nom_like_flag_combined`` columns; also written to
+        :data:`OUTPUT_VK_PATH`.
+
+    Notes
+    -----
+    A molecule is flagged NOM-like when ``0.2 <= O/C <= 0.7`` and
+    ``0.7 <= H/C <= 1.5`` (approximate humic/fulvic ranges).
+    """
     comps = df["formula"].apply(parse_formula)
 
     c = comps.apply(lambda d: d.get("C", 0))
@@ -118,6 +183,18 @@ def add_van_krevelen_and_nom_flag(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def plot_van_krevelen(df: pd.DataFrame) -> None:
+    """Plot and save a Van Krevelen (H/C vs O/C) diagram.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Candidates with ``H_C``, ``O_C`` and ``nom_like_flag_vk`` columns.
+
+    Returns
+    -------
+    None
+        The figure is written to :data:`VK_PLOT_PATH`.
+    """
     plt.figure(figsize=(6, 6))
 
     # выделим nom_like и не-nom_like разными цветами
@@ -138,6 +215,14 @@ def plot_van_krevelen(df: pd.DataFrame) -> None:
     plt.close()
 
 def debug_input():
+    """Print a quick summary of the raw PubChem input file.
+
+    Returns
+    -------
+    None
+        Column names, the first rows of ``formula``/``charge`` and mass
+        statistics (when present) are printed to stdout.
+    """
     df = pd.read_csv(INPUT_PATH)
     print("Columns:", df.columns.tolist())
     print(df[["formula", "charge"]].head(20))
@@ -149,6 +234,21 @@ def debug_input():
         print("exact_mass describe:\n", df["exact_mass"].describe())
 
 def split_into_sets(df: pd.DataFrame, n_sets: int = 5) -> list[pd.DataFrame]:
+    """Split candidates into balanced subsets by round-robin dealing.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Candidates with ``O_C``, ``H_C`` and ``mass_val`` columns.
+    n_sets : int, optional
+        Number of subsets. Default 5.
+
+    Returns
+    -------
+    list of pandas.DataFrame
+        One frame per subset, balanced by sorting on O/C, H/C and mass
+        then dealing rows cyclically.
+    """
     df = df.copy()
 
     # выберем параметры для балансировки
@@ -166,6 +266,19 @@ def split_into_sets(df: pd.DataFrame, n_sets: int = 5) -> list[pd.DataFrame]:
     return set_dfs
 
 def save_sets(set_dfs: list[pd.DataFrame]) -> None:
+    """Write each subset to ``data/test_sets/set_0i/molecules.csv``.
+
+    Parameters
+    ----------
+    set_dfs : list of pandas.DataFrame
+        Subsets from :func:`split_into_sets`.
+
+    Returns
+    -------
+    None
+        Each subset is re-indexed with fresh ``set_id``,
+        ``compound_number`` and ``compound_id`` values before saving.
+    """
     for i, sdf in enumerate(set_dfs, start=1):
         set_id = f"set_0{i}"
         out_path = SUBPROJECT_ROOT / f"data/test_sets/{set_id}" / "molecules.csv"

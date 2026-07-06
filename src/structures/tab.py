@@ -10,12 +10,23 @@ from .rdkit_utils import fragment_to_rdkit, RDKIT_OK, save_mol, save_png
 from .widgets import StructureCard
 
 class StructureViewerTab(ttk.Frame):
-    """
-    Вкладка «🧪 Структуры» для app.py.
+    """Notebook tab that generates and displays candidate structures.
 
-    Параметры:
-        parent  — ttk.Notebook (родитель)
-        app     — экземпляр App из app.py (для доступа к result_df)
+    Lets the user pick an assigned peak (by ``m/z``) from the pipeline
+    results, enumerate plausible molecular structures for its brutto
+    formula (respecting the assigned -COOH/-OH counts), and browse the
+    results as RDKit-rendered cards with per-structure and batch export
+    to ``.mol``/``.png``.
+
+    Parameters
+    ----------
+    parent : tkinter.ttk.Notebook
+        Parent notebook widget hosting the tab.
+    app : App
+        Main application instance from :mod:`src.app`, used to access the
+        results table ``result_df`` and the shared log widget.
+    **kw
+        Additional keyword arguments forwarded to ``ttk.Frame``.
     """
 
     def __init__(self, parent, app, **kw):

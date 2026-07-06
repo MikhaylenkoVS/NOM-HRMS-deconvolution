@@ -13,7 +13,28 @@ import numpy as np
 # Вспомогательные функции загрузки спектров для графиков
 # ----------------------------------------------------------------------
 def load_spectrum_csv(path: str) -> pd.DataFrame:
-    """Читает CSV-спектр с колонками mass,intensity."""
+    """Load a mass spectrum from CSV into a ``mass``/``intensity`` frame.
+
+    Column names are lower-cased and common aliases (``m/z``, ``mz``,
+    ``i``, ``int``) are renamed to the canonical ``mass``/``intensity``.
+
+    Parameters
+    ----------
+    path : str
+        Path to the CSV file.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Frame with exactly the ``mass`` (m/z, Da) and ``intensity``
+        columns.
+
+    Raises
+    ------
+    ValueError
+        If the file does not contain recognizable mass and intensity
+        columns.
+    """
     df = pd.read_csv(path)
     # Нормализуем колонки
     df.columns = [c.strip().lower() for c in df.columns]
@@ -26,7 +47,29 @@ def load_spectrum_csv(path: str) -> pd.DataFrame:
 
 def plot_three_spectra(orig_path: str, dmet_path: str, dacet_path: str,
                        save_path: Path, title: str = "Mass Spectra Overlay"):
-    """Строит три спектра на одном полотне и сохраняет PNG."""
+    """Plot original, deuteromethylated and deuteroacylated spectra.
+
+    Draws the three spectra as stacked stem plots sharing an ``m/z`` axis
+    and saves the figure to ``save_path``.
+
+    Parameters
+    ----------
+    orig_path : str
+        Path to the underivatized spectrum CSV.
+    dmet_path : str
+        Path to the deuteromethylated (-COOH → COOCD3) spectrum CSV.
+    dacet_path : str
+        Path to the deuteroacylated (-OH → OCOCD3) spectrum CSV.
+    save_path : pathlib.Path
+        Output PNG path.
+    title : str, optional
+        Figure super-title. Default ``"Mass Spectra Overlay"``.
+
+    Returns
+    -------
+    None
+        The figure is written to ``save_path`` at 150 dpi.
+    """
     orig = load_spectrum_csv(orig_path)
     dmet = load_spectrum_csv(dmet_path)
     dacet = load_spectrum_csv(dacet_path)
@@ -48,8 +91,33 @@ def plot_three_spectra(orig_path: str, dmet_path: str, dacet_path: str,
 def plot_series_grid(df_series: pd.DataFrame, deriv_mz_array: np.ndarray,
                      delta: float, ppm_tol: float, label: str,
                      save_path: Path):
-    """Сохраняет grid-график серий с пропущенными пиками.
-       Использует ту же логику, что и visualize_series, но с прямым сохранением.
+    """Save a grid plot of homologous series to a file.
+
+    Wraps :func:`src.core.spectrum_ops.visualize_series`, rebuilding the
+    minimal ``Spectrum`` objects it needs from the series table so the
+    figure can be written headlessly.
+
+    Parameters
+    ----------
+    df_series : pandas.DataFrame
+        Series table with at least a ``mass_src`` column of source m/z
+        values. If empty the function returns immediately.
+    deriv_mz_array : numpy.ndarray
+        Array of derivatized-spectrum m/z values.
+    delta : float
+        Mass shift per derivatized group, in Da (e.g. ``DELTA_CD3``).
+    ppm_tol : float
+        Matching tolerance in ppm.
+    label : str
+        Label describing the derivatization series.
+    save_path : pathlib.Path
+        Output image path.
+
+    Returns
+    -------
+    None
+        The figure is written to ``save_path``; nothing is saved when
+        ``df_series`` is empty.
     """
     if df_series.empty:
         return
@@ -68,7 +136,26 @@ def plot_series_grid(df_series: pd.DataFrame, deriv_mz_array: np.ndarray,
                 ppm_tol=ppm_tol, save_path=str(save_path))
 
 def plot_histogram(df: pd.DataFrame, column: str, save_path: Path, title: str = ""):
-    """Сохраняет гистограмму распределения значений столбца."""
+    """Save a histogram of the integer values in one column.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Source table.
+    column : str
+        Name of the column to histogram (e.g. ``"N_COOH"`` or
+        ``"N_OH"``); values are dropped of NaNs and cast to int.
+    save_path : pathlib.Path
+        Output PNG path.
+    title : str, optional
+        Plot title. Defaults to ``"Distribution of {column}"``.
+
+    Returns
+    -------
+    None
+        The figure is written to ``save_path``; nothing is saved when the
+        column has no values.
+    """
     vals = df[column].dropna().astype(int)
     if vals.empty:
         return

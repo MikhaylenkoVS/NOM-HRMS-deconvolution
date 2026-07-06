@@ -15,14 +15,64 @@ ELEMENT_DATA = {
 }
 
 class Hybridization(Enum):
-    """Типы гибридизации атома"""
+    """Atomic hybridization state.
+
+    Enumerates the carbon hybridization states inferred from local bonding.
+
+    Attributes
+    ----------
+    SP3 : str
+        Tetrahedral carbon, only single bonds.
+    SP2 : str
+        Trigonal carbon, one double bond or aromatic.
+    SP : str
+        Linear carbon, one triple bond.
+    UNKNOWN : str
+        Hybridization not yet determined.
+    """
     SP3 = 'sp3'
     SP2 = 'sp2'
     SP = 'sp'
     UNKNOWN = 'unknown'
 
 class Atom:
-    """Класс для представления атома в молекуле"""
+    """A single atom within a molecular graph.
+
+    Tracks the element, its bonds, and the consumed valence so that the
+    molecule builder can enforce valence limits while assembling structures.
+
+    Parameters
+    ----------
+    symbol : str
+        Chemical element symbol. Must be a key of ``ELEMENT_DATA``
+        (H, C, N, O, F, P, S, Cl, Br, I).
+    number : int
+        Unique index of the atom within its molecule.
+    formal_charge : int, optional
+        Formal charge on the atom. For elements with charge-dependent
+        valence (N, O, P, S) the effective valence is selected accordingly.
+        Default is 0.
+
+    Attributes
+    ----------
+    valence : int
+        Maximum bond order the atom can accommodate (charge-adjusted).
+    connections : list of int
+        Indices of bonded neighbour atoms.
+    bond_orders : list of int
+        Bond order for each entry in ``connections`` (1, 2 or 3).
+    used_valence : int
+        Sum of bond orders currently attached to the atom.
+    hybridization : Hybridization
+        Current hybridization state (auto-updated for carbon).
+    is_aromatic : bool
+        Whether the atom belongs to an aromatic system.
+
+    Raises
+    ------
+    ValueError
+        If ``symbol`` is not a supported element.
+    """
 
     def __init__(self, symbol: str, number: int, formal_charge: int = 0):
         if symbol not in ELEMENT_DATA:
@@ -47,6 +97,22 @@ class Atom:
         self.is_aromatic = False
 
     def add_bond(self, atom_number: int, bond_order: int = 1) -> bool:
+        """Add a bond to another atom, respecting the valence limit.
+
+        Parameters
+        ----------
+        atom_number : int
+            Index of the neighbour atom to bond to.
+        bond_order : int, optional
+            Bond order to create (1 = single, 2 = double, 3 = triple).
+            Default is 1.
+
+        Returns
+        -------
+        bool
+            ``True`` if the bond was added; ``False`` if the bond already
+            exists or would exceed the atom's available valence.
+        """
         if atom_number in self.connections:
             return False  # bond already exists
         if self.used_valence + bond_order > self.valence:
@@ -58,7 +124,14 @@ class Atom:
         return True
 
     def _update_hybridization(self):
-        """Автоматическое определение гибридизации"""
+        """Infer and store the carbon hybridization from current bonds.
+
+        Notes
+        -----
+        Only carbon atoms are classified: a triple bond implies ``SP``, a
+        double bond or aromatic flag implies ``SP2``, otherwise ``SP3``.
+        For non-carbon atoms the method returns without changes.
+        """
         if self.symbol != 'C':
             return
 
@@ -73,7 +146,19 @@ class Atom:
             self.hybridization = Hybridization.SP3
 
     def get_bond_order_to(self, atom_number: int) -> int:
-        """Получить порядок связи с атомом"""
+        """Return the bond order to a given neighbour atom.
+
+        Parameters
+        ----------
+        atom_number : int
+            Index of the neighbour atom.
+
+        Returns
+        -------
+        int
+            Bond order to the neighbour (1, 2 or 3), or 0 if the two atoms
+            are not bonded.
+        """
         try:
             idx = self.connections.index(atom_number)
             return self.bond_orders[idx]

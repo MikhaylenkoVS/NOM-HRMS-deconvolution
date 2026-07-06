@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""Shift masses in annotation and spectrum CSVs by minus one proton.
+
+Utility for converting neutral masses to ``[M-H]-`` ion masses (or fixing
+files stored with the wrong convention) by subtracting the proton mass
+from the relevant columns. Runs in dry-run mode unless ``--apply`` is
+given, and writes a ``.bak`` backup before overwriting.
+"""
 import argparse
 import pathlib
 import sys
@@ -10,6 +17,21 @@ MASS_H = 1.007276466812
 
 
 def shift_annotations(path: pathlib.Path, dry_run: bool = True) -> None:
+    """Subtract the proton mass from an annotations file's mass columns.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to an ``annotations*.csv`` file; it must have ``mass_obs``
+        and ``mass_theor`` columns or it is skipped.
+    dry_run : bool, optional
+        If ``True`` (default) only print the intended change; if ``False``
+        overwrite the file (after writing a ``.bak`` backup).
+
+    Returns
+    -------
+    None
+    """
     print(f"Processing annotations: {path}")
     df = pd.read_csv(path)
 
@@ -44,6 +66,21 @@ def shift_annotations(path: pathlib.Path, dry_run: bool = True) -> None:
 
 
 def shift_spectrum(path: pathlib.Path, dry_run: bool = True) -> None:
+    """Subtract the proton mass from a spectrum file's ``mass`` column.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to a spectrum CSV; it must have a ``mass`` column or it is
+        skipped.
+    dry_run : bool, optional
+        If ``True`` (default) only print the intended change; if ``False``
+        overwrite the file (after writing a ``.bak`` backup).
+
+    Returns
+    -------
+    None
+    """
     print(f"Processing spectrum: {path}")
     df = pd.read_csv(path)
 
@@ -69,6 +106,18 @@ def shift_spectrum(path: pathlib.Path, dry_run: bool = True) -> None:
 
 
 def main(argv=None) -> int:
+    """Command-line entry point: shift masses under a directory tree.
+
+    Parameters
+    ----------
+    argv : list of str or None, optional
+        Argument vector; defaults to ``sys.argv`` when ``None``.
+
+    Returns
+    -------
+    int
+        Process exit code (``0`` on success).
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Сдвигает массы в annotations и спектрах на -массу протона.\n"
