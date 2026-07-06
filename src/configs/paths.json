@@ -1,0 +1,12 @@
+{
+  "data_dir": "data",
+  "test_sets_dir": "data/test_sets",
+  "ref_data_dir": "data/ref_data",
+  "default_output_csv": "result_table.csv",
+  "spectrum_files": {
+    "original": "original.csv",
+    "deutermethylated": "deutermethylated.csv",
+    "deuteroacylated": "deuteroacylated.csv"
+  },
+  "num_test_sets": 5
+}

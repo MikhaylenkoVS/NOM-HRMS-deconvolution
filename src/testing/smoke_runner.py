@@ -19,25 +19,14 @@ from src.testing.artifact_export import (
 )
 from src.testing.structure_export import export_structures_for_compound
 
+from src.configs import PIPELINE
+
 logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------
-# Конфигурация
+# Конфигурация (единый источник — pipeline.json -> smoke_pipeline_params)
 # ----------------------------------------------------------------------
-PIPELINE_PARAMS = {
-    'load_mass_min': 0.0,
-    'load_mass_max': 1000.0,
-    'noise_force': 10,
-    'noise_intensity': 100,
-    'rel_error': 0.5,
-    'sign': '-',
-    'assign_mass_min': 0,
-    'assign_mass_max': 1000,
-    'ppm_tol': 0.5,
-    'max_groups': 20,
-    'allow_gaps': True,
-    'visualize': False,
-}
+PIPELINE_PARAMS = dict(PIPELINE.smoke_pipeline_params)
 
 # ----------------------------------------------------------------------
 def run_smoke_suite(data_root: Path, output_root: Path) -> SmokeSuiteResult:

@@ -1,0 +1,79 @@
+{
+  "load_spectrum_defaults": {
+    "mass_min": 200.0,
+    "mass_max": 700.0
+  },
+  "default_brutto_dict": {
+    "C": [0, 50],
+    "H": [0, 100],
+    "O": [0, 25],
+    "N": [0, 10]
+  },
+  "formula_search": {
+    "elements": ["C", "H", "O", "N"],
+    "ranges": {
+      "C": [1, 50],
+      "H": [4, 100],
+      "O": [0, 20],
+      "N": [0, 6]
+    },
+    "max_hc": 3.0,
+    "max_oc": 1.2,
+    "max_nc": 1.0,
+    "max_dbe": 30.0,
+    "min_c": 1
+  },
+  "run_pipeline_defaults": {
+    "sep": ",",
+    "load_mass_min": 0.0,
+    "load_mass_max": 1000.0,
+    "noise_force": 10,
+    "noise_intensity": 100,
+    "rel_error": 1.0,
+    "sign": "-",
+    "assign_mass_min": 0,
+    "assign_mass_max": 1000,
+    "ppm_tol": 5.0,
+    "max_groups": 20,
+    "allow_gaps": true
+  },
+  "test_mode": {
+    "denoise": {
+      "force": 10.0,
+      "intensity": 100,
+      "quantile": null
+    },
+    "assign": {
+      "mode": "simple",
+      "rel_error_ppm": 0.5,
+      "mass_min": null,
+      "mass_max": null
+    },
+    "series": {
+      "ppm_tol": 0.5,
+      "max_groups": 20,
+      "allow_gaps": true,
+      "min_series_length": 1
+    },
+    "match_ppm": 0.5
+  },
+  "thresholds": {
+    "min_denoise_recall": 0.90,
+    "min_assign_recall": 0.75,
+    "max_wrong_ratio": 0.20
+  },
+  "smoke_pipeline_params": {
+    "load_mass_min": 0.0,
+    "load_mass_max": 1000.0,
+    "noise_force": 10,
+    "noise_intensity": 100,
+    "rel_error": 0.5,
+    "sign": "-",
+    "assign_mass_min": 0,
+    "assign_mass_max": 1000,
+    "ppm_tol": 0.5,
+    "max_groups": 20,
+    "allow_gaps": true,
+    "visualize": false
+  }
+}

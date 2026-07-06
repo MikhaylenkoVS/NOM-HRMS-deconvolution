@@ -30,13 +30,14 @@ import itertools
 import math
 import re
 from src.simulations.generate_test_sets import exact_mass_from_formula
+from src.configs import CHEM, PIPELINE
 from typing import Literal, Sequence
 
 # ---------------------------------------------------------------------------
-# Константы
+# Константы (единый источник — src/configs/chemistry.json)
 # ---------------------------------------------------------------------------
-DELTA_CD3   = 17.03448   # Da: сдвиг m/z при замене COOH -> COOCD3
-DELTA_CD3CO = 45.02939   # Da: сдвиг m/z при замене OH  -> OCOCD3
+DELTA_CD3   = CHEM.derivatization_shifts["delta_cd3"]    # Da: сдвиг m/z при замене COOH -> COOCD3
+DELTA_CD3CO = CHEM.derivatization_shifts["delta_cd3co"]  # Da: сдвиг m/z при замене OH  -> OCOCD3
 
 
 # ===========================================================================
@@ -44,11 +45,19 @@ DELTA_CD3CO = 45.02939   # Da: сдвиг m/z при замене OH  -> OCOCD3
 # ===========================================================================
 
 logger = logging.getLogger(__name__)
+# Monoisotopic masses of the elements handled by the [M-H]- assignment
+# (single source of truth: chemistry.json -> monoisotopic_masses).
 ATOMIC_MASS = {
-    "H": 1.00782503223,
-    "C": 12.0,
-    "N": 14.00307400443,
-    "O": 15.99491461957
+    el: CHEM.monoisotopic_masses[el] for el in CHEM.atomic_mass_elements
+}
+
+# Formula-search defaults (single source of truth: pipeline.json -> formula_search).
+# JSON stores ranges as [min, max] lists; convert to tuples to preserve the
+# exact original types expected downstream.
+_FORMULA_SEARCH = PIPELINE.formula_search
+_FS_ELEMENTS: tuple[str, ...] = tuple(_FORMULA_SEARCH["elements"])
+_FS_RANGES: dict[str, tuple[int, int]] = {
+    el: tuple(rng) for el, rng in _FORMULA_SEARCH["ranges"].items()
 }
 
 
@@ -82,24 +91,19 @@ class FormulaSearchConfig:
     ValueError
         If any element in ``elements`` lacks a range in ``ranges``.
     """
-    elements: tuple[str, ...] = ("C", "H", "O", "N")
+    elements: tuple[str, ...] = _FS_ELEMENTS
     ranges: dict[str, tuple[int, int]] | None = None
-    # Простые фильтры (можно менять под задачу)
-    max_hc: float = 3.0        # H/C <= 3
-    max_oc: float = 1.2        # O/C <= 1.2
-    max_nc: float = 1.0        # N/C <= 1.0
-    max_dbe: float = 30.0      # DBE <= 30
-    min_c: int = 1             # минимум углеродов
+    # Plausibility filters (defaults from pipeline.json -> formula_search).
+    max_hc: float = _FORMULA_SEARCH["max_hc"]      # H/C <= 3
+    max_oc: float = _FORMULA_SEARCH["max_oc"]      # O/C <= 1.2
+    max_nc: float = _FORMULA_SEARCH["max_nc"]      # N/C <= 1.0
+    max_dbe: float = _FORMULA_SEARCH["max_dbe"]    # DBE <= 30
+    min_c: int = _FORMULA_SEARCH["min_c"]          # minimum carbons
 
     def __post_init__(self):
         if self.ranges is None:
-            # дефолтные диапазоны, подстрой под свои данные
-            self.ranges = {
-                "C": (1, 50),
-                "H": (4, 100),
-                "O": (0, 20),
-                "N": (0, 6),
-            }
+            # Default per-element count ranges (see pipeline.json).
+            self.ranges = dict(_FS_RANGES)
         for el in self.elements:
             if el not in self.ranges:
                 raise ValueError(f"Для элемента {el!r} не задан диапазон в ranges")
@@ -181,8 +185,8 @@ def load_spectrum(
     path,
     mapper=None,
     sep=",",
-    mass_min=200.0,
-    mass_max=700.0,
+    mass_min=PIPELINE.load_spectrum_defaults["mass_min"],
+    mass_max=PIPELINE.load_spectrum_defaults["mass_max"],
     metadata=None,
 ):
     """Load a mass spectrum from a CSV file into a Spectrum object.
@@ -310,11 +314,11 @@ def denoise(
 # ЭТАП 2b: Назначение брутто-формул
 # ===========================================================================
 
+# Default per-element count ranges for brutto assignment.
+# Source: pipeline.json -> default_brutto_dict. JSON stores [min, max] lists;
+# convert to tuples to preserve the exact original types.
 DEFAULT_BRUTTO_DICT = {
-    'C': (0, 50),
-    'H': (0, 100),
-    'O': (0, 25),
-    'N': (0, 10),
+    el: tuple(rng) for el, rng in PIPELINE.default_brutto_dict.items()
 }
 
 def _generate_candidate_formulas(

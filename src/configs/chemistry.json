@@ -1,0 +1,17 @@
+{
+  "monoisotopic_masses": {
+    "H": 1.00782503223,
+    "C": 12.0,
+    "N": 14.00307400443,
+    "O": 15.99491461957,
+    "S": 31.9720711744,
+    "P": 30.97376199842
+  },
+  "atomic_mass_elements": ["H", "C", "N", "O"],
+  "proton_mass": 1.007276466812,
+  "derivatization_shifts": {
+    "delta_cd3": 17.03448,
+    "delta_cd3co": 45.02939
+  },
+  "default_ion_mode": "[M-H]-"
+}

@@ -12,8 +12,13 @@ import sys
 
 import pandas as pd
 
-# Моноизотопная масса протона (H+)
-MASS_H = 1.007276466812
+# Allow running this standalone script from any cwd: put the repo root
+# (which contains the ``src`` package) on the import path.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from src.configs import CHEM
+
+# Proton mass (H+); single source of truth: chemistry.json.
+MASS_H = CHEM.proton_mass
 
 
 def shift_annotations(path: pathlib.Path, dry_run: bool = True) -> None:

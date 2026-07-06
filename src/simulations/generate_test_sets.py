@@ -22,24 +22,18 @@ import pandas as pd
 import math
 import random
 
+from src.configs import CHEM, PATHS
+
 
 # Корень подпроекта генератора: AnalyticsSpectra/Генерация тестовых спектров
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Базовые пути данных внутри подпроекта
-DATA_ROOT = PROJECT_ROOT / "data"
-TEST_SETS_ROOT = DATA_ROOT / "test_sets"
+# Базовые пути данных внутри подпроекта (относительные пути из paths.json).
+DATA_ROOT = PROJECT_ROOT / PATHS.data_dir
+TEST_SETS_ROOT = PROJECT_ROOT / PATHS.test_sets_dir
 
-# Моноизотопные массы основных элементов (можно расширять при необходимости)
-element_masses: Dict[str, float] = {
-    "H": 1.00782503223,
-    "C": 12.0,
-    "N": 14.00307400443,
-    "O": 15.99491461957,
-    "S": 31.9720711744,
-    "P": 30.97376199842,
-    # при необходимости будем расширять словарь
-}
+# Monoisotopic element masses (single source of truth: chemistry.json).
+element_masses: Dict[str, float] = dict(CHEM.monoisotopic_masses)
 
 def parse_formula(formula: str) -> Dict[str, int]:
     """Parse a simple brutto formula such as ``C7H6O5``.

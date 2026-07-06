@@ -24,6 +24,8 @@ from typing import Optional
 from src.core.molecule import parse_formula
 import pandas as pd
 
+from src.configs import CHEM, PIPELINE
+
 # ---------------------------------------------------------------------------
 # Импорт зависимостей из spectrum_ops
 # ---------------------------------------------------------------------------
@@ -346,24 +348,24 @@ def run_pipeline(
     dmet_path=None,
     dacet_path=None,
     *,
-    # Загрузка
-    sep=",",
-    load_mass_min: float = 0.0,
-    load_mass_max: float = 1000.0,
+    # Загрузка (defaults: pipeline.json -> run_pipeline_defaults)
+    sep=PIPELINE.run_pipeline_defaults["sep"],
+    load_mass_min: float = PIPELINE.run_pipeline_defaults["load_mass_min"],
+    load_mass_max: float = PIPELINE.run_pipeline_defaults["load_mass_max"],
     # Шумоподавление
-    noise_force=10,
-    noise_intensity=100,
+    noise_force=PIPELINE.run_pipeline_defaults["noise_force"],
+    noise_intensity=PIPELINE.run_pipeline_defaults["noise_intensity"],
     noise_quantile=None,
     # Назначение формул
     brutto_dict=None,
-    rel_error: float = 1.0,
-    sign: str = "-",
-    assign_mass_min: float = 0,
-    assign_mass_max: float = 1000,
+    rel_error: float = PIPELINE.run_pipeline_defaults["rel_error"],
+    sign: str = PIPELINE.run_pipeline_defaults["sign"],
+    assign_mass_min: float = PIPELINE.run_pipeline_defaults["assign_mass_min"],
+    assign_mass_max: float = PIPELINE.run_pipeline_defaults["assign_mass_max"],
     # Поиск серий
-    ppm_tol: float = 5.0,
-    max_groups: int = 20,
-    allow_gaps: bool = True,
+    ppm_tol: float = PIPELINE.run_pipeline_defaults["ppm_tol"],
+    max_groups: int = PIPELINE.run_pipeline_defaults["max_groups"],
+    allow_gaps: bool = PIPELINE.run_pipeline_defaults["allow_gaps"],
     # Визуализация
     visualize: bool = True,
     save_dmet=None,
@@ -772,13 +774,24 @@ def run_pipeline(
 # ---------------------------------------------------------------------------
 
 #: Параметры, которые используют интеграционные тесты
-_TEST_DENOISE_KWARGS = dict(force=10.0, intensity=100, quantile=None)
-_TEST_ASSIGN_KWARGS = dict(mode="simple", rel_error_ppm=0.5, mass_min=None, mass_max=None)
-_TEST_SERIES_KWARGS = dict(ppm_tol=0.5, max_groups=20, allow_gaps=True, min_series_length=1)
-_TEST_MATCH_PPM = 0.5
+#: (единый источник — pipeline.json -> test_mode).
+_TEST_DENOISE_KWARGS = dict(PIPELINE.test_mode["denoise"])
+_TEST_ASSIGN_KWARGS = dict(PIPELINE.test_mode["assign"])
+_TEST_SERIES_KWARGS = dict(PIPELINE.test_mode["series"])
+_TEST_MATCH_PPM = PIPELINE.test_mode["match_ppm"]
+# Derivatization deltas fall back to chemistry.json when spectrum_ops import
+# fails, so the exact shifts stay identical to the primary source.
 _DERIV_SPECS = [
-    ("deutermethylated.csv", DELTA_CD3 if not _IMPORT_ERROR else 17.03448, "deutermethylated"),
-    ("deuteroacylated.csv", DELTA_CD3CO if not _IMPORT_ERROR else 45.02939, "deuteroacylated"),
+    (
+        "deutermethylated.csv",
+        DELTA_CD3 if not _IMPORT_ERROR else CHEM.derivatization_shifts["delta_cd3"],
+        "deutermethylated",
+    ),
+    (
+        "deuteroacylated.csv",
+        DELTA_CD3CO if not _IMPORT_ERROR else CHEM.derivatization_shifts["delta_cd3co"],
+        "deuteroacylated",
+    ),
 ]
 
 
@@ -924,9 +937,10 @@ def _run_test_mode(
     # Проверки на пороги
     print()
     print("ПРОВЕРКА ПОРОГОВ:")
-    MIN_DENOISE_RECALL = 0.90
-    MIN_ASSIGN_RECALL = 0.75
-    MAX_WRONG_RATIO = 0.20
+    # Pass/fail thresholds (single source of truth: pipeline.json -> thresholds).
+    MIN_DENOISE_RECALL = PIPELINE.thresholds["min_denoise_recall"]
+    MIN_ASSIGN_RECALL = PIPELINE.thresholds["min_assign_recall"]
+    MAX_WRONG_RATIO = PIPELINE.thresholds["max_wrong_ratio"]
     any_fail = False
     for r in results:
         if r.denoise_recall < MIN_DENOISE_RECALL:
