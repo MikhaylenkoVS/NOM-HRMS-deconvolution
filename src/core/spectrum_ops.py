@@ -470,13 +470,13 @@ def _neutral_to_ion_mass(neutral_mass: float, ion_mode: str) -> float:
     if ion_mode in ("neutral", None, ""):
         return neutral_mass
 
-    # отрицательный режим [M-H]-
+    # отрицательный режим [M-H]- : вычитаем массу протона (не атома H)
     if ion_mode in ("[m-h]-", "m-h", "mh-"):
-        return neutral_mass - ATOMIC_MASS["H"]
+        return neutral_mass - CHEM.proton_mass
 
-    # положительный режим [M+H]+ — на будущее
+    # положительный режим [M+H]+ : добавляем массу протона
     if ion_mode in ("[m+h]+", "m+h", "mh+"):
-        return neutral_mass + ATOMIC_MASS["H"]
+        return neutral_mass + CHEM.proton_mass
 
     # можно добавить другие аддукты позже
     raise ValueError(f"Unknown ion_mode: {ion_mode}")
