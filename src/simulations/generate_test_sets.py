@@ -771,6 +771,8 @@ def write_annotations_csv(
     if file_path.exists() and not overwrite:
         return
 
+    h_mass = CHEM.monoisotopic_masses["H"]
+
     fieldnames = [
         "set_id",
         "spectrum_type",
@@ -778,6 +780,7 @@ def write_annotations_csv(
         "mass_obs",
         "intensity",
         "mass_theor",
+        "exact_mass",
         "mass_error_ppm",
         "compound_id",
         "compound_number",
@@ -808,6 +811,10 @@ def write_annotations_csv(
                 intensity = rec.get("intensity")
                 is_signal = rec.get("is_signal", True)
 
+                # Для сигнальных пиков exact_mass = neutral масса = mass_theor + H
+                # Для шумовых — оставляем пустым (serialises as empty string in CSV)
+                exact_mass = (mass_theor + h_mass) if is_signal else None
+
                 writer.writerow(
                     {
                         "set_id": rec.get("set_id"),
@@ -816,6 +823,7 @@ def write_annotations_csv(
                         "mass_obs": mass_obs,
                         "intensity": intensity,
                         "mass_theor": mass_theor,
+                        "exact_mass": exact_mass,
                         "mass_error_ppm": err_ppm,
                         "compound_id": rec.get("compound_id"),
                         "compound_number": rec.get("compound_number"),
