@@ -81,15 +81,9 @@ def test_assign_formulas_original_in_all_sets(set_dir: Path):
 
     Диагностические (не валят тест):
     - процент совпадений с annotations;
-    - процент шумовых пиков, получивших формулу.
 
 
     Проверка assign (mode='simple') для spectrum_type='original' во всех наборах set_0N.
-
-    TODO [release]:
-    - выкинуть H-1 костыль для synthetic-аннотаций после выравнивания mass/ion_mode;
-    - реализовать более честный учёт шума (denoise / intensity threshold);
-    - добавить мягкий NOM-фильтр при выборе лучшей формулы среди кандидатов.
     """
 
     src_path = set_dir / "original.csv"

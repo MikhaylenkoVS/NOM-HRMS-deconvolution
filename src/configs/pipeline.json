@@ -1,7 +1,7 @@
 {
   "load_spectrum_defaults": {
-    "mass_min": 200.0,
-    "mass_max": 700.0
+    "mass_min": 100.0,
+    "mass_max": 800.0
   },
   "default_brutto_dict": {
     "C": [0, 50],

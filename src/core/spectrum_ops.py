@@ -340,24 +340,26 @@ def _generate_candidate_formulas(
 ) -> list[tuple[str, float]]:
     """Enumerate candidate CHON formulas within a neutral-mass window.
 
+    Uses precomputed mass ranges per element (C→H→O→N) to avoid redundant
+    iterations and guarantee that every feasible formula is generated
+    regardless of loop order.
+
     Parameters
     ----------
     mass_min, mass_max : float
         Neutral-mass window (Da). A small margin (+/-1 %) is added at the
         edges to tolerate rounding.
     cfg : FormulaSearchConfig
-        Element ranges and chemical filters.
+        Element ranges.
     mode : {"soft", "nom_like"}, optional
-        Ignored — kept for backward compatibility. All candidates within
-        element ranges and mass window are returned without hard filters.
-        NOM-prioritization is applied later in ``assign_formulas_simple``.
-        Default ``"soft"``.
+        Ignored — kept for backward compatibility. Default ``"soft"``.
 
     Returns
     -------
     list of tuple of (str, float)
         Pairs of ``(formula_string, exact_neutral_mass)``.
     """
+    eps = 1e-9  # защита от округления в ceil/floor
     mass_min_abs = mass_min * 0.99
     mass_max_abs = mass_max * 1.01
 
@@ -366,53 +368,81 @@ def _generate_candidate_formulas(
     o_min, o_max = cfg.ranges.get("O", (0, 0))
     n_min, n_max = cfg.ranges.get("N", (0, 0))
 
+    M_C = ATOMIC_MASS["C"]
+    M_H = ATOMIC_MASS.get("H", 0.0)
+    M_O = ATOMIC_MASS.get("O", 0.0)
+    M_N = ATOMIC_MASS.get("N", 0.0)
+    M_O_max = o_max * M_O
+    M_N_max = n_max * M_N
+    M_extra = M_O_max + M_N_max  # макс. добавка гетероатомов
+
     result: list[tuple[str, float]] = []
 
-    # Максимальная масса, добавляемая гетероатомами (O, N)
-    max_extra = o_max * ATOMIC_MASS.get("O", 0) + n_max * ATOMIC_MASS.get("N", 0)
-
     for c in range(c_min, c_max + 1):
-        counts = {"C": c}
-        base_mass_c = c * ATOMIC_MASS["C"]
-        if base_mass_c > mass_max_abs:
+        base_C = c * M_C
+        if base_C > mass_max_abs:
             break
 
-        for h in range(h_min, h_max + 1):
-            counts["H"] = h
-            mass_ch = exact_mass_from_counts(counts)
-            if mass_ch > mass_max_abs:
-                break
-            # Пропускаем H, только если даже с макс. O/N масса ниже min
-            if mass_ch + max_extra < mass_min_abs:
+        # ---------- допустимый диапазон H для этого C ----------
+        # Даже с макс. O+N масса должна достичь mass_min_abs
+        h_lo = max(
+            h_min,
+            math.ceil((mass_min_abs - base_C - M_extra) / M_H - eps),
+        )
+        # Без O+N масса не должна превысить mass_max_abs
+        h_hi = min(
+            h_max,
+            math.floor((mass_max_abs - base_C) / M_H + eps),
+        )
+        if h_lo > h_hi:
+            continue
+
+        for h in range(h_lo, h_hi + 1):
+            base_CH = base_C + h * M_H
+
+            # ---------- допустимый диапазон O ----------
+            o_lo = max(
+                o_min,
+                (
+                    math.ceil((mass_min_abs - base_CH - M_N_max) / M_O - eps)
+                    if M_O > 0
+                    else 0
+                ),
+            )
+            o_hi = min(
+                o_max,
+                math.floor((mass_max_abs - base_CH) / M_O + eps) if M_O > 0 else 0,
+            )
+            if o_lo > o_hi:
                 continue
 
-            for o in range(o_min, o_max + 1):
-                counts["O"] = o
-                mass_cho = exact_mass_from_counts(counts)
-                if mass_cho > mass_max_abs:
-                    break
+            for o in range(o_lo, o_hi + 1):
+                base_CHO = base_CH + o * M_O
 
-                for n in range(n_min, n_max + 1):
-                    counts["N"] = n
-                    mass = exact_mass_from_counts(counts)
-                    if mass < mass_min_abs:
-                        continue
-                    if mass > mass_max_abs:
-                        break
-
-                    # Строим строку формулы
+                # ---------- допустимый диапазон N ----------
+                n_lo = max(
+                    n_min,
+                    math.ceil((mass_min_abs - base_CHO) / M_N - eps) if M_N > 0 else 0,
+                )
+                n_hi = min(
+                    n_max,
+                    math.floor((mass_max_abs - base_CHO) / M_N + eps) if M_N > 0 else 0,
+                )
+                for n in range(n_lo, n_hi + 1):
+                    mass = base_CHO + n * M_N
+                    # строим строку формулы
                     parts: list[str] = []
+                    counts = {"C": c, "H": h}
+                    if o > 0:
+                        counts["O"] = o
+                    if n > 0:
+                        counts["N"] = n
                     for el in cfg.elements:
                         val = counts.get(el, 0)
                         if val <= 0:
                             continue
-                        if val == 1:
-                            parts.append(el)
-                        else:
-                            parts.append(f"{el}{val}")
-                    formula_str = "".join(parts)
-
-                    result.append((formula_str, mass))
+                        parts.append(el if val == 1 else f"{el}{val}")
+                    result.append(("".join(parts), mass))
 
     return result
 
