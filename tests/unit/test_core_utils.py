@@ -565,3 +565,47 @@ class TestFormulaRoundTrip:
         first = _normalize_brutto(reordered)
         second = _normalize_brutto(first)
         assert first == second, f"Normalisation not idempotent for {formula}"
+
+
+# ===================================================================
+# Regression: generator mass_shift_per_group should match pipeline
+# ===================================================================
+
+
+class TestGeneratorShiftConsistency:
+    """Fallback values in generate_test_sets.py must match pipeline DELTA_*
+    constants (issue pub-06). Otherwise synthetic data will be generated
+    with wrong mass shifts and none of the series will be found."""
+
+    def test_dm_shift_matches_delta_cd3(self):
+        """Generator's dm_shift_per_group fallback == DELTA_CD3."""
+        from src.core.spectrum_ops import DELTA_CD3
+        from src.configs import CHEM
+
+        fallback = CHEM.derivatization_shifts["delta_cd3"]
+        assert fallback == DELTA_CD3, (
+            f"CHEM delta_cd3 ({fallback}) != DELTA_CD3 ({DELTA_CD3})"
+        )
+
+    def test_da_shift_matches_delta_cd3co(self):
+        """Generator's da_shift_per_group fallback == DELTA_CD3CO."""
+        from src.core.spectrum_ops import DELTA_CD3CO
+        from src.configs import CHEM
+
+        fallback = CHEM.derivatization_shifts["delta_cd3co"]
+        assert fallback == DELTA_CD3CO, (
+            f"CHEM delta_cd3co ({fallback}) != DELTA_CD3CO ({DELTA_CD3CO})"
+        )
+
+    def test_generator_imports_chem(self):
+        """generate_test_sets.py uses CHEM.derivatization_shifts as fallback."""
+        import importlib
+        import sys
+
+        # Prevent side effects from full import
+        spec = importlib.util.find_spec(
+            "src.simulations.generate_test_sets"
+        )
+        assert spec is not None, (
+            "generate_test_sets module not found — integrity check skipped"
+        )

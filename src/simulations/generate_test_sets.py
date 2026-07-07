@@ -7,10 +7,10 @@ annotation tables under ``data/test_sets``.
 
 Notes
 -----
-The per-group mass shifts in the default config (``15.0`` Da for
-deuteromethylation of -COOH, ``45.0`` Da for deuteroacylation of -OH) are
-rounded placeholders for the exact deltas used by the analysis pipeline
-(``DELTA_CD3`` = 17.03448 Da, ``DELTA_CD3CO`` = 45.02939 Da).
+The per-group mass shifts are sourced from
+``CHEM.derivatization_shifts``, which is the single source of truth also
+used by the analysis pipeline (``DELTA_CD3`` = 17.03448 Da,
+``DELTA_CD3CO`` = 45.02939 Da).
 """
 
 from pathlib import Path
@@ -275,8 +275,12 @@ def generate_spectra_for_set(
     dm_cfg = der_cfg.get("deutermethyl", {})
     da_cfg = der_cfg.get("deuteroacyl", {})
 
-    dm_shift_per_group = dm_cfg.get("mass_shift_per_group", 15.0)
-    da_shift_per_group = da_cfg.get("mass_shift_per_group", 45.0)
+    dm_shift_per_group = dm_cfg.get(
+        "mass_shift_per_group", CHEM.derivatization_shifts["delta_cd3"]
+    )
+    da_shift_per_group = da_cfg.get(
+        "mass_shift_per_group", CHEM.derivatization_shifts["delta_cd3co"]
+    )
 
     def _to_int_or_zero(value):
         if value in (None, ""):
@@ -511,8 +515,12 @@ def generate_spectra_for_set(
     dm_cfg = der_cfg.get("deutermethyl", {})
     da_cfg = der_cfg.get("deuteroacyl", {})
 
-    dm_shift_per_group = dm_cfg.get("mass_shift_per_group", 15.0)
-    da_shift_per_group = da_cfg.get("mass_shift_per_group", 45.0)
+    dm_shift_per_group = dm_cfg.get(
+        "mass_shift_per_group", CHEM.derivatization_shifts["delta_cd3"]
+    )
+    da_shift_per_group = da_cfg.get(
+        "mass_shift_per_group", CHEM.derivatization_shifts["delta_cd3co"]
+    )
 
     # в config target_groups есть, но на этом уровне удобнее
     # явно использовать carboxyl_count/hydroxyl_count
