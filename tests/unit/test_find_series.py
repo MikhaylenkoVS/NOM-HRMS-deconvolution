@@ -630,3 +630,92 @@ def test_pipeline_denoise_assign_find_series_on_existing_sets(set_dir: Path):
         )
 
     _debug(f"=== END SET {set_dir.name} ===")
+
+
+# ===================================================================
+# Unit tests for max_consecutive_misses (early-stop optimisation)
+# ===================================================================
+
+
+def _make_src_spectrum(masses, assign=True, brutto="C7H6O2"):
+    """Helper: build a minimal source Spectrum with assign/brutto columns."""
+    df = pd.DataFrame({
+        "mass": masses,
+        "brutto": brutto,
+        "assign": assign,
+    })
+    return Spectrum(table=df)
+
+
+def _make_deriv_spectrum(masses, intensities=None):
+    """Helper: build a minimal derivatized Spectrum."""
+    if intensities is None:
+        intensities = [1000.0] * len(masses)
+    df = pd.DataFrame({
+        "mass": masses,
+        "intensity": intensities,
+    })
+    return Spectrum(table=df)
+
+
+class TestMaxConsecutiveMisses:
+    """Tests for the early-stop optimisation (issue #3)."""
+
+    DELTA = 17.03448
+
+    def test_default_value_is_three(self):
+        """Default max_consecutive_misses should be 3."""
+        import inspect
+        sig = inspect.signature(find_series)
+        default = sig.parameters["max_consecutive_misses"].default
+        assert default == 3
+
+    def test_value_below_one_raises(self):
+        """max_consecutive_misses < 1 raises ValueError."""
+        src = _make_src_spectrum([100.0])
+        deriv = _make_deriv_spectrum([117.03448])
+        with pytest.raises(ValueError, match="max_consecutive_misses"):
+            find_series(src, deriv, self.DELTA, max_consecutive_misses=0)
+
+    def test_early_stop_prevents_wasteful_loops(self):
+        """Series with many gaps stops early at max_consecutive_misses."""
+        # 1 found peak, then 5 consecutive misses
+        src = _make_src_spectrum([100.0])
+        deriv = _make_deriv_spectrum([117.03448])  # step 1 only
+        result = find_series(
+            src, deriv, self.DELTA,
+            max_groups=10, max_consecutive_misses=3,
+        )
+        assert not result.empty
+        # n_groups should be 1 (only step 1 found, then 3 misses stops)
+        assert int(result.iloc[0]["n_groups"]) == 1
+
+    def test_internal_gap_does_not_break_series(self):
+        """A gap inside the series does NOT trigger early-stop."""
+        # steps 1 and 3 found, step 2 missing → series length 3
+        src = _make_src_spectrum([100.0])
+        # step 1: 117.03448, step 2: miss, step 3: 151.10344
+        step3_mz = 100.0 + 3 * self.DELTA
+        deriv = _make_deriv_spectrum([117.03448, step3_mz])
+        result = find_series(
+            src, deriv, self.DELTA,
+            max_groups=5, max_consecutive_misses=3,
+        )
+        assert not result.empty
+        row = result.iloc[0]
+        assert int(row["n_groups"]) == 3
+        assert row["missing"] == [2]
+
+    def test_early_stop_does_not_affect_dense_series(self):
+        """A complete series without gaps is unaffected by early-stop."""
+        src = _make_src_spectrum([100.0])
+        # 5 steps, all present
+        mz_list = [100.0 + i * self.DELTA for i in range(1, 6)]
+        deriv = _make_deriv_spectrum(mz_list)
+        result = find_series(
+            src, deriv, self.DELTA,
+            max_groups=10, max_consecutive_misses=3,
+        )
+        assert not result.empty
+        assert int(result.iloc[0]["n_groups"]) == 5
+        assert result.iloc[0]["missing"] == []

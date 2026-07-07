@@ -914,6 +914,7 @@ def find_series(
     max_groups=20,
     allow_gaps=True,
     min_series_length=1,
+    max_consecutive_misses=3,
 ):
     """Detect homologous derivatization series in a labelled spectrum.
 
@@ -941,6 +942,10 @@ def find_series(
         if ``False``, stop the series at the first gap. Default ``True``.
     min_series_length : int, optional
         Minimum series length required to emit a record. Default 1.
+    max_consecutive_misses : int, optional
+        Stop probing the series after this many consecutive missed (gap)
+        steps.  Avoids wasteful loops for molecules with few functional
+        groups when ``allow_gaps=True``.  Must be >= 1.  Default 3.
 
     Returns
     -------
@@ -953,8 +958,9 @@ def find_series(
     Raises
     ------
     ValueError
-        If ``ppm_tol <= 0``, if ``max_groups``/``min_series_length`` are
-        below 1, or if required columns are missing from ``src``/``deriv``.
+        If ``ppm_tol <= 0``, if ``max_groups``/``min_series_length``/
+        ``max_consecutive_misses`` are below 1, or if required columns
+        are missing from ``src``/``deriv``.
 
     Notes
     -----
@@ -965,9 +971,10 @@ def find_series(
 
     if ppm_tol <= 0:
         raise ValueError(f"ppm_tol должно быть > 0, получено {ppm_tol}")
-    if max_groups < 1 or min_series_length < 1:
+    if max_groups < 1 or min_series_length < 1 or max_consecutive_misses < 1:
         raise ValueError(
-            f"max_groups ({max_groups}) и min_series_length ({min_series_length}) "
+            f"max_groups ({max_groups}), min_series_length ({min_series_length}) "
+            f"и max_consecutive_misses ({max_consecutive_misses}) "
             "должны быть >= 1"
         )
     required_src = ["brutto", "mass", "assign"]
@@ -992,6 +999,7 @@ def find_series(
         m0 = row["mass"]
         found_steps = []
         series_mz = []
+        consecutive_misses = 0
 
         for step in range(1, max_groups + 1):
             target = m0 + step * delta
@@ -1000,10 +1008,13 @@ def find_series(
             if idx is not None:
                 found_steps.append(step)
                 series_mz.append(float(mz_deriv[idx]))
+                consecutive_misses = 0
             else:
                 series_mz.append(None)
+                consecutive_misses += 1
+                if consecutive_misses >= max_consecutive_misses:
+                    break
                 if not allow_gaps and found_steps:
-                    series_mz = series_mz[:step]
                     break
 
         if not found_steps:
