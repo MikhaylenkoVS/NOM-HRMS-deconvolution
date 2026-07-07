@@ -911,10 +911,15 @@ def assign_formulas(
         For ``mode="simple_from_molecules"`` (not yet implemented).
     """
     kwargs.pop("rel_error", None)
-    kwargs.pop("sign", None)
+    _sign = kwargs.pop("sign", "-")
     kwargs.pop("mass_min", None)
     kwargs.pop("mass_max", None)
     kwargs.pop("brutto_dict", None)
+
+    # Выводим ion_mode из sign, если не передан явно
+    if ion_mode == CHEM.default_ion_mode and _sign is not None:
+        sign_map = {"-": "[M-H]-", "+": "[M+H]+", "0": "neutral"}
+        ion_mode = sign_map.get(str(_sign), CHEM.default_ion_mode)
 
     if mode == "simple":
         _np = kwargs.pop("nom_prioritize", False)
