@@ -1,0 +1,21 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        language_version: python3.14
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        exclude: ^external/
+
+  - repo: local
+    hooks:
+      - id: pytest-smoke
+        name: pytest smoke tests
+        entry: python -m pytest tests/ -x -q --tb=short --ignore=tests/unit/test_app_fallback.py
+        language: system
+        pass_filenames: false
+        always_run: true

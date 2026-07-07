@@ -1,0 +1,24 @@
+[flake8]
+max-line-length = 120
+exclude = external/*,.venv/*,.git/*,build/*,dist/*
+
+# Pre-existing issues — silenced per-file until cleaned incrementally
+per-file-ignores =
+    tests/*.py: E402, E712, F401
+    tools/*.py: E402, F401, F811
+    src/testing/*.py: E402, F401
+    src/ui/__init__.py: F401
+    src/ui/theme.py: F401
+    src/app.py: F403, F401, F841, F541, E402, E231
+    src/core/__init__.py: F401
+    src/core/fragment_combinations.py: F541, E722
+    src/core/fragments.py: F401
+    src/core/pipeline.py: F401, E712
+    src/core/spectrum_ops.py: F401, E712
+    src/core/rdkit_bridge.py: E722, F541
+    src/simulations/generate_test_sets.py: F811, F401
+    src/simulations/process_pubchem_candidates.py: F401
+    src/structures/__init__.py: F401, F811
+    src/structures/rdkit_utils.py: F403, F405
+    src/structures/tab.py: F403, F405, F401, F841
+    src/structures/widgets.py: F401, F403, F405
