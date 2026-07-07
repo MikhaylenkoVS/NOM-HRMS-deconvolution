@@ -129,9 +129,6 @@ def _normalize_brutto(value) -> Optional[str]:
         return s.upper()
 
 
-
-
-
 def _match_row_by_mass(
     table: pd.DataFrame,
     mass_obs: float,
@@ -701,7 +698,7 @@ def run_pipeline(
     # -----------------------------------------------------------------------
     print()
     print("=" * 60)
-    print("ШАГ 4: Серии дейтероацилирования (-> N_OH_total)")
+    print("ШАГ 4: Серии дейтероацилирования (-> N_OH)")
     print("=" * 60)
     _debug(
         f"find_series: delta={DELTA_CD3CO:.5f}, ppm_tol={ppm_tol}, max_groups={max_groups}, allow_gaps={allow_gaps}"
@@ -736,7 +733,7 @@ def run_pipeline(
 
     print(f"  Соединений с сериями CD3CO: {len(df_dacet)}")
     if not df_dacet.empty:
-        print(f"  Макс. N_OH_total = {stats.dacet.max_groups}")
+        print(f"  Макс. N_OH = {stats.dacet.max_groups}")
         if stats.dacet.missing_total:
             print(
                 f"  ВНИМАНИЕ: Внутренних пропусков в сериях: {stats.dacet.missing_total}"

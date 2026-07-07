@@ -1193,7 +1193,6 @@ def build_result_table(src, df_dmet, df_dacet):
     result["n_dmet"] = result["n_dmet"].fillna(0).astype(int)
     result["n_dacet"] = result["n_dacet"].fillna(0).astype(int)
     result["N_COOH"] = result["n_dmet"]
-    result["N_OH_total"] = result["n_dacet"]
     result["N_OH"] = result["n_dacet"]
 
     return (
@@ -1203,7 +1202,6 @@ def build_result_table(src, df_dmet, df_dacet):
                 "intensity",
                 "brutto",
                 "N_COOH",
-                "N_OH_total",
                 "N_OH",
                 "missing_dmet",
                 "missing_dacet",
