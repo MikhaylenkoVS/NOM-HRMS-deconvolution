@@ -388,36 +388,36 @@ class TestNeutralToIonMass:
         assert _neutral_to_ion_mass(100.0, "") == 100.0
 
     def test_m_h_minus(self):
-        """[M-H]- subtracts one hydrogen mass (actual ATOMIC_MASS value)."""
-        from src.core.spectrum_ops import ATOMIC_MASS
+        """[M-H]- subtracts one proton mass."""
+        from src.configs import CHEM
 
         result = _neutral_to_ion_mass(100.0, "[M-H]-")
-        assert abs(result - (100.0 - ATOMIC_MASS["H"])) < 1e-12
+        assert abs(result - (100.0 - CHEM.proton_mass)) < 1e-12
 
     def test_m_h_minus_short_aliases(self):
         """Short aliases 'm-h' and 'mh-' work too."""
-        from src.core.spectrum_ops import ATOMIC_MASS
+        from src.configs import CHEM
 
         r1 = _neutral_to_ion_mass(100.0, "m-h")
         r2 = _neutral_to_ion_mass(100.0, "mh-")
-        expected = 100.0 - ATOMIC_MASS["H"]
+        expected = 100.0 - CHEM.proton_mass
         assert abs(r1 - expected) < 1e-12
         assert abs(r2 - expected) < 1e-12
 
     def test_m_h_plus(self):
-        """[M+H]+ adds one hydrogen mass (actual ATOMIC_MASS value)."""
-        from src.core.spectrum_ops import ATOMIC_MASS
+        """[M+H]+ adds one proton mass."""
+        from src.configs import CHEM
 
         result = _neutral_to_ion_mass(100.0, "[M+H]+")
-        assert abs(result - (100.0 + ATOMIC_MASS["H"])) < 1e-12
+        assert abs(result - (100.0 + CHEM.proton_mass)) < 1e-12
 
     def test_m_h_plus_short_aliases(self):
         """Short aliases 'm+h' and 'mh+' work too."""
-        from src.core.spectrum_ops import ATOMIC_MASS
+        from src.configs import CHEM
 
         r1 = _neutral_to_ion_mass(100.0, "m+h")
         r2 = _neutral_to_ion_mass(100.0, "mh+")
-        expected = 100.0 + ATOMIC_MASS["H"]
+        expected = 100.0 + CHEM.proton_mass
         assert abs(r1 - expected) < 1e-12
         assert abs(r2 - expected) < 1e-12
 
@@ -548,9 +548,9 @@ class TestGeneratorShiftConsistency:
         from src.configs import CHEM
 
         fallback = CHEM.derivatization_shifts["delta_cd3"]
-        assert fallback == DELTA_CD3, (
-            f"CHEM delta_cd3 ({fallback}) != DELTA_CD3 ({DELTA_CD3})"
-        )
+        assert (
+            fallback == DELTA_CD3
+        ), f"CHEM delta_cd3 ({fallback}) != DELTA_CD3 ({DELTA_CD3})"
 
     def test_da_shift_matches_delta_cd3co(self):
         """Generator's da_shift_per_group fallback == DELTA_CD3CO."""
@@ -558,9 +558,9 @@ class TestGeneratorShiftConsistency:
         from src.configs import CHEM
 
         fallback = CHEM.derivatization_shifts["delta_cd3co"]
-        assert fallback == DELTA_CD3CO, (
-            f"CHEM delta_cd3co ({fallback}) != DELTA_CD3CO ({DELTA_CD3CO})"
-        )
+        assert (
+            fallback == DELTA_CD3CO
+        ), f"CHEM delta_cd3co ({fallback}) != DELTA_CD3CO ({DELTA_CD3CO})"
 
     def test_generator_imports_chem(self):
         """generate_test_sets.py uses CHEM.derivatization_shifts as fallback."""
@@ -568,9 +568,7 @@ class TestGeneratorShiftConsistency:
         import sys
 
         # Prevent side effects from full import
-        spec = importlib.util.find_spec(
-            "src.simulations.generate_test_sets"
-        )
-        assert spec is not None, (
-            "generate_test_sets module not found — integrity check skipped"
-        )
+        spec = importlib.util.find_spec("src.simulations.generate_test_sets")
+        assert (
+            spec is not None
+        ), "generate_test_sets module not found — integrity check skipped"
