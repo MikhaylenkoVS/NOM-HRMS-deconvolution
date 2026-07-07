@@ -59,7 +59,7 @@ def to_rdkit_mol(fragment: Molecule):
     # ИСПРАВЛЕНИЕ: Санитизируем молекулу перед добавлением водородов
     try:
         Chem.SanitizeMol(mol, sanitizeOps=Chem.SANITIZE_ALL ^ Chem.SANITIZE_PROPERTIES)
-    except:
+    except Exception:
         # Если полная санитизация не удалась, пробуем базовую
         Chem.SanitizeMol(
             mol,

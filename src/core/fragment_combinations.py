@@ -454,51 +454,48 @@ def find_and_visualize_molecules(
     # === ШАГ 6: Визуализация (если требуется) ===
     if show_images:
         print("\n🎨 Визуализация структур...")
-        try:
-            for mol_data in molecules_data:
-                mol_obj = mol_data["fragment_object"]
+        for mol_data in molecules_data:
+            mol_obj = mol_data["fragment_object"]
 
-                # Создаём RDKit молекулу
-                rdkit_mol = Chem.RWMol()
-                for symbol in mol_obj.atoms:
-                    rdkit_mol.AddAtom(Chem.Atom(symbol))
+            # Создаём RDKit молекулу
+            rdkit_mol = Chem.RWMol()
+            for symbol in mol_obj.atoms:
+                rdkit_mol.AddAtom(Chem.Atom(symbol))
 
-                for i, j, order in mol_obj.bonds:
-                    bond_types = [
-                        Chem.BondType.SINGLE,
-                        Chem.BondType.DOUBLE,
-                        Chem.BondType.TRIPLE,
-                    ]
-                    rdkit_mol.AddBond(i, j, bond_types[order - 1])
+            for i, j, order in mol_obj.bonds:
+                bond_types = [
+                    Chem.BondType.SINGLE,
+                    Chem.BondType.DOUBLE,
+                    Chem.BondType.TRIPLE,
+                    Chem.BondType.AROMATIC,
+                ]
+                idx = min(order - 1, len(bond_types) - 1)
+                rdkit_mol.AddBond(i, j, bond_types[idx])
 
-                rdkit_mol = rdkit_mol.GetMol()
+            rdkit_mol = rdkit_mol.GetMol()
 
-                # Санитизация
+            # Санитизация
+            try:
+                Chem.SanitizeMol(rdkit_mol)
+            except Exception:
                 try:
-                    Chem.SanitizeMol(rdkit_mol)
-                except:
-                    try:
-                        Chem.SanitizeMol(
-                            rdkit_mol,
-                            sanitizeOps=Chem.SANITIZE_ALL ^ Chem.SANITIZE_PROPERTIES,
-                        )
-                    except:
-                        pass
+                    Chem.SanitizeMol(
+                        rdkit_mol,
+                        sanitizeOps=Chem.SANITIZE_ALL ^ Chem.SANITIZE_PROPERTIES,
+                    )
+                except Exception:
+                    pass
 
-                # Добавляем водороды и генерируем координаты
-                rdkit_mol = Chem.AddHs(rdkit_mol)
-                AllChem.Compute2DCoords(rdkit_mol)
+            # Добавляем водороды и генерируем координаты
+            rdkit_mol = Chem.AddHs(rdkit_mol)
+            AllChem.Compute2DCoords(rdkit_mol)
 
-                # Генерируем изображение
-                img = Draw.MolToImage(rdkit_mol, size=image_size)
-                images.append(img)
-                mol_data["image"] = img
+            # Генерируем изображение
+            img = Draw.MolToImage(rdkit_mol, size=image_size)
+            images.append(img)
+            mol_data["image"] = img
 
-            print(f"✅ Создано {len(images)} изображений")
-
-        except ImportError:
-            print("⚠️  RDKit не установлен, визуализация недоступна")
-            print("   Установите: pip install rdkit")
+        print(f"✅ Создано {len(images)} изображений")
 
     # === ШАГ 7: Вывод результатов ===
     print("\n" + "=" * 60)
