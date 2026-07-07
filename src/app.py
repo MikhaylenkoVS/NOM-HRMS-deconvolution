@@ -743,7 +743,9 @@ class App(tk.Tk):
     def _browse(self, var: tk.StringVar):
         path = filedialog.askopenfilename(
             filetypes=[
+                ("CSV / RAW files", "*.csv;*.raw"),
                 ("CSV files", "*.csv"),
+                ("RAW files", "*.raw"),
                 ("Text files", "*.txt"),
                 ("All files", "*.*"),
             ]
