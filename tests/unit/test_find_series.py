@@ -115,26 +115,6 @@ def _ppm_error(observed: float, theoretical: float) -> float:
 FORMULA_RE = re.compile(r"([A-Z][a-z]?)(\d*)")
 
 
-def _subtract_one_h(brutto: str) -> str:
-    """
-    Костыль из test_assign_formulas: уменьшить число H на 1.
-    """
-    if brutto is None or not isinstance(brutto, str):
-        return brutto
-
-    m = re.search(r"H(\d+)", brutto)
-    if not m:
-        return brutto
-
-    h_count = int(m.group(1))
-    if h_count <= 1:
-        return brutto
-
-    new_h = f"H{h_count - 1}"
-    old_h = f"H{h_count}"
-    return brutto.replace(old_h, new_h, 1)
-
-
 def normalize_brutto(formula: str) -> str:
     """
     Та же нормализация, что в test_assign_formulas.
@@ -412,14 +392,7 @@ def test_pipeline_denoise_assign_find_series_on_existing_sets(set_dir: Path):
     assert "assign" in assigned_df.columns
     assert "brutto" in assigned_df.columns
 
-    # Временный костыль: subtract_one_h
-    mask_assigned = assigned_df["assign"] == True
-    assigned_df.loc[mask_assigned, "brutto"] = assigned_df.loc[
-        mask_assigned, "brutto"
-    ].apply(_subtract_one_h)
-    assigned_src.table = assigned_df
-
-    _preview_table(assigned_df, f"{set_dir.name} assigned (simple + H-1)")
+    _preview_table(assigned_df, f"{set_dir.name} assigned (simple)")
 
     assigned_ok = 0
     assign_missing_cases = []
@@ -537,6 +510,7 @@ def test_pipeline_denoise_assign_find_series_on_existing_sets(set_dir: Path):
         matched_series = 0
         wrong_length_cases = []
         missing_series_cases = []
+        total_with_series = 0
 
         for _, ann_row in ann_orig_signal.iterrows():
             mass_obs = float(ann_row["mass_obs"])
@@ -556,6 +530,13 @@ def test_pipeline_denoise_assign_find_series_on_existing_sets(set_dir: Path):
 
             molecule_row = molecule_match.iloc[0]
             expected_len = _expected_series_length(deriv_filename, molecule_row)
+
+            # Если у молекулы нет целевых групп (expected_len = 0),
+            # то серия не ожидается — пропускаем эту молекулу.
+            if expected_len == 0:
+                continue
+
+            total_with_series += 1
 
             row = _match_result_row_by_mass(result, mass_obs, MATCH_PPM)
             if row is None:
@@ -593,11 +574,12 @@ def test_pipeline_denoise_assign_find_series_on_existing_sets(set_dir: Path):
                 )
 
         wrong_count = len(missing_series_cases) + len(wrong_length_cases)
-        wrong_ratio = wrong_count / total_signals if total_signals else 0.0
+        _total_series = total_with_series if total_with_series else total_signals
+        wrong_ratio = wrong_count / _total_series if _total_series else 0.0
 
         _debug(
-            f"{set_dir.name}/{deriv_label}: matched_series={matched_series}/{total_signals}, "
-            f"wrong_count={wrong_count}/{total_signals} ({wrong_ratio:.3f})"
+            f"{set_dir.name}/{deriv_label}: matched_series={matched_series}/{total_with_series}, "
+            f"wrong_count={wrong_count}/{_total_series} ({wrong_ratio:.3f})"
         )
 
         if missing_series_cases:

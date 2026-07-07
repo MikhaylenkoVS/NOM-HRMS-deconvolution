@@ -129,34 +129,7 @@ def _normalize_brutto(value) -> Optional[str]:
         return s.upper()
 
 
-def _subtract_one_h(brutto: str) -> str:
-    """Remove one hydrogen from a formula to model the [M-H]- ion.
 
-    Parameters
-    ----------
-    brutto : str
-        Neutral molecular formula, e.g. ``"C7H6O2"``.
-
-    Returns
-    -------
-    str
-        Formula with one fewer H (Hill notation). Returned unchanged if the
-        input is empty or has at most one hydrogen.
-    """
-    if not brutto:
-        return brutto
-    counts = parse_formula(brutto)
-    h = counts.get("H", 0)
-    if h <= 1:
-        return brutto
-    counts["H"] = h - 1
-    # rebuild using Hill notation (or simple loop)
-    # You can use the helper from molecule.py or write a small rebuild:
-    parts = []
-    for el in ["C", "H"] + sorted(k for k in counts if k not in ("C", "H")):
-        if el in counts and counts[el] > 0:
-            parts.append(el if counts[el] == 1 else f"{el}{counts[el]}")
-    return "".join(parts)
 
 
 def _match_row_by_mass(
@@ -657,26 +630,6 @@ def run_pipeline(
         n_assigned = 0
 
     print(f"  Назначено формул: {n_assigned} из {stats.src_denoised} пиков")
-
-    # Применяем subtract_one_h к назначенным брутто
-    _debug("Применяем subtract_one_h к brutto в src.table")
-    try:
-        if "brutto" in src.table.columns and "assign" in src.table.columns:
-            mask = src.table["assign"] == True  # noqa: E712
-            before = src.table.loc[mask, "brutto"].head(3).tolist()
-            src.table.loc[mask, "brutto"] = src.table.loc[mask, "brutto"].apply(
-                _subtract_one_h
-            )
-            after = src.table.loc[mask, "brutto"].head(3).tolist()
-            _debug(f"subtract_one_h: до={before}, после={after}")
-        else:
-            _debug(
-                f"ВНИМАНИЕ: нет колонок 'brutto'/'assign' в src.table, колонки: {list(src.table.columns)}"
-            )
-    except Exception as e:
-        msg = f"[PIPELINE] ОШИБКА subtract_one_h: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
-        messages.append(msg)
 
     # Строим копию только с назначенными пиками
     try:
@@ -1310,20 +1263,6 @@ def _run_single_test_set(
         print(f"  [ERROR] {msg}")
         res.errors.append(msg)
         return res
-
-    # Применяем subtract_one_h
-    try:
-        assigned_table = src_a.table.copy()
-        mask_assigned = assigned_table["assign"] == True  # noqa: E712
-        assigned_table.loc[mask_assigned, "brutto"] = assigned_table.loc[
-            mask_assigned, "brutto"
-        ].apply(_subtract_one_h)
-        src_a.table = assigned_table
-        _debug(f"{set_dir.name} subtract_one_h применён к {mask_assigned} строкам")
-    except Exception as e:
-        msg = f"subtract_one_h: {e}"
-        print(f"  [WARN] {msg}")
-        res.errors.append(msg)
 
     # assigned_only: только назначенные
     try:

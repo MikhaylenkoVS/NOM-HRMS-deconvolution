@@ -7,8 +7,7 @@ with no I/O or external dependencies, making them ideal for fast unit tests.
 
 Target modules
 --------------
-* src.core.pipeline      — _ppm_error, _normalize_brutto, _subtract_one_h,
-                           _match_row_by_mass
+* src.core.pipeline      — _ppm_error, _normalize_brutto, _match_row_by_mass
 * src.core.spectrum_ops  — exact_mass_from_counts, dbe_from_counts,
                            _row_to_brutto, _neutral_to_ion_mass, _find_peak
 * src.core.molecule      — parse_formula, calculate_IHD, add_formula
@@ -27,7 +26,6 @@ import pytest
 from src.core.pipeline import (
     _ppm_error,
     _normalize_brutto,
-    _subtract_one_h,
     _match_row_by_mass,
 )
 
@@ -132,39 +130,6 @@ class TestNormalizeBrutto:
         result = _normalize_brutto("OHC")
         # C before H before O → C, H, O
         assert result == "CHO"
-
-
-# ===================================================================
-# _subtract_one_h
-# ===================================================================
-
-
-class TestSubtractOneH:
-    """Tests for pipeline._subtract_one_h ([M-H]- adjustment)."""
-
-    def test_empty_string_returned_unchanged(self):
-        """Empty input returns empty."""
-        assert _subtract_one_h("") == ""
-
-    def test_formula_without_h_unchanged(self):
-        """Formula with no H (e.g. CO2) returns unchanged."""
-        assert _subtract_one_h("CO2") == "CO2"
-
-    def test_h1_unchanged(self):
-        """Formula with exactly one H stays unchanged (would go to H0)."""
-        assert _subtract_one_h("CH") == "CH"
-
-    def test_typical_case(self):
-        """C7H6O2 → C7H5O2."""
-        assert _subtract_one_h("C7H6O2") == "C7H5O2"
-
-    def test_large_h_count(self):
-        """C20H29O2 → C20H28O2."""
-        assert _subtract_one_h("C20H29O2") == "C20H28O2"
-
-    def test_with_nitrogen(self):
-        """C10H14O2N → C10H13NO2 (Hill order: N before O)."""
-        assert _subtract_one_h("C10H14O2N") == "C10H13NO2"
 
 
 # ===================================================================

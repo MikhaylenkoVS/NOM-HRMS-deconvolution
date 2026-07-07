@@ -20,33 +20,6 @@ DEFAULT_BRUTTO_DICT = {el: tuple(rng) for el, rng in _RAW_BRUTTO.items()}
 FORMULA_RE = re.compile(r"([A-Z][a-z]?)(\d*)")
 
 
-def _subtract_one_h(brutto: str) -> str:
-    """
-    Временный костыль: уменьшить число H на 1 в строке формулы.
-    Работает только для CHON-формул, где H явно указан.
-    Примеры:
-      C20H29O2 -> C20H28O2
-      C10H14O2N -> C10H13O2N
-    Если H нет или H1, оставляем как есть.
-    """
-    if brutto is None or not isinstance(brutto, str):
-        return brutto
-
-    m = re.search(r"H(\d+)", brutto)
-    if not m:
-        # нет явного Hn — ничего не меняем
-        return brutto
-
-    h_count = int(m.group(1))
-    if h_count <= 1:
-        # H или H1 — не рискуем уходить в H0/H-1
-        return brutto
-
-    new_h = f"H{h_count - 1}"
-    old_h = f"H{h_count}"
-    return brutto.replace(old_h, new_h, 1)
-
-
 def parse_formula(formula: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for elem, num in FORMULA_RE.findall(formula):
@@ -148,32 +121,6 @@ def test_assign_formulas_original_in_all_sets(set_dir: Path):
     assert "assign" in src_df.columns
     assert "brutto" in src_df.columns
 
-    # TODO: TEMP HACK до согласования mass / ion_mode:
-    # synthetic-данные хранят нейтральные массы, а simple-assign сейчас
-    # систематически даёт формулы с +1 H. Для теста снимаем 1 протон.
-    from copy import deepcopy
-
-    # NOTE / TODO (release-blocker):
-    # Сейчас synthetic-test_sets хранят нейтральные массы, а assign_formulas_simple
-    # интерпретирует mass как m/z [M-H]-. В результате simple-assign систематически
-    # даёт формулы с +1 H относительно истинных.
-    #
-    # Временное решение для тестов: после assign снимаем один протон из brutto
-    # (_subtract_one_h). Это КОСТЫЛЬ только для synthetic-данных.
-    #
-    # К релизу нужно:
-    # - синхронизировать mass-модель generator vs assign_formulas_simple,
-    # - убрать этот костыль и проверить, что match_ratio остаётся высоким.
-
-    src_df = src.table.copy()
-
-    mask_assigned = src_df["assign"] == True
-    src_df.loc[mask_assigned, "brutto"] = src_df.loc[mask_assigned, "brutto"].apply(
-        _subtract_one_h
-    )
-
-    # обновляем src, чтобы дальнейший код теста работал с "исправленными" brutto
-    src.table = src_df
     assigned = src_df[src_df["assign"] == True].copy()
 
     # 3. Загружаем annotations и берём only original

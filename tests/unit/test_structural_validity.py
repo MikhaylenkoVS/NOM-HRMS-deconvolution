@@ -1,5 +1,4 @@
 import csv
-import json
 from pathlib import Path
 from src.configs import PATHS
 
@@ -27,7 +26,6 @@ def test_required_files_exist_in_set_01():
     assert set_dir.exists(), "Директория set_01 должна существовать"
 
     expected_files = {
-        "config.json",
         PATHS.spectrum_files["molecules"],
         PATHS.spectrum_files["original"],
         PATHS.spectrum_files["deutermethylated"],
@@ -38,40 +36,6 @@ def test_required_files_exist_in_set_01():
     existing = {p.name for p in set_dir.iterdir() if p.is_file()}
     missing = expected_files - existing
     assert not missing, f"Отсутствуют ожидаемые файлы: {missing}"
-
-
-def test_config_json_has_basic_keys():
-    """Проверка, что config.json имеет базовые ключи и типы."""
-
-    set_dir = _get_set_dir("set_01")
-    config_path = set_dir / "config.json"
-    assert config_path.exists(), "config.json должен существовать"
-
-    data = json.loads(config_path.read_text(encoding="utf-8"))
-
-    # обязательные верхнеуровневые ключи
-    for key in ["set_id", "mass_range", "ppm_error", "noise", "derivatization"]:
-        assert key in data, f"В config.json отсутствует ключ: {key}"
-
-    # базовые проверки вложенных структур
-    assert isinstance(data["mass_range"], dict), "mass_range должен быть dict"
-    assert (
-        "min" in data["mass_range"] and "max" in data["mass_range"]
-    ), "mass_range должен содержать поля 'min' и 'max'"
-
-    assert isinstance(data["ppm_error"], dict), "ppm_error должен быть dict"
-    for key in ["type", "mean", "std", "max_abs"]:
-        assert key in data["ppm_error"], f"В ppm_error отсутствует ключ: {key}"
-
-    assert isinstance(data["noise"], dict), "noise должен быть dict"
-    for key in ["peak_count", "intensity_fraction_max"]:
-        assert key in data["noise"], f"В noise отсутствует ключ: {key}"
-
-    assert isinstance(data["derivatization"], dict), "derivatization должен быть dict"
-    for key in ["deutermethyl", "deuteroacyl"]:
-        assert (
-            key in data["derivatization"]
-        ), f"В derivatization отсутствует ключ: {key}"
 
 
 def test_spectra_csv_headers_use_mass_and_intensity():
@@ -147,6 +111,7 @@ def test_annotations_csv_header_structure():
         "mass_obs",
         "intensity",
         "mass_theor",
+        "exact_mass",
         "mass_error_ppm",
         "compound_id",
         "compound_number",

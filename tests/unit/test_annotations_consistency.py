@@ -1,8 +1,7 @@
 import csv
-import json
 from math import isclose
 from pathlib import Path
-from src.configs import PATHS
+from src.configs import CHEM, PATHS
 
 SUBPROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = SUBPROJECT_ROOT / PATHS.data_dir
@@ -38,13 +37,8 @@ def test_annotations_have_matching_peaks_in_spectra_and_ppm_limits():
     set_id = "set_01"
     set_dir = _get_set_dir(set_id)
 
-    # Загружаем config.json для порога по ppm
-    config_path = set_dir / "config.json"
-    assert config_path.exists(), "config.json должен существовать"
-
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    ppm_cfg = config.get("ppm_error", {})
-    max_abs_ppm = float(ppm_cfg.get("max_abs", 5.0))
+    # Порог ppm соответствует default-конфигу генератора (0.5 ppm)
+    max_abs_ppm = 0.5
 
     # Загружаем annotations.csv
     ann_path = set_dir / PATHS.spectrum_files["annotations"]
