@@ -1,18 +1,12 @@
 import csv
 from pathlib import Path
+
 from src.configs import PATHS
+from tests.conftest import PROJECT_ROOT, TEST_SETS_ROOT
 
 # Тесты структурной валидности файлов тестовых наборов
 
-SUBPROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_ROOT = SUBPROJECT_ROOT / PATHS.data_dir
-TEST_SETS_ROOT = DATA_ROOT / PATHS.test_sets_dir
-
-
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TEST_SETS_ROOT = PROJECT_ROOT / PATHS.test_sets_dir
+DATA_ROOT = PROJECT_ROOT / PATHS.data_dir
 
 
 def _get_set_dir(set_id: str) -> Path:

@@ -28,7 +28,8 @@ DELTA_DEUTEROMETHYLATED = CHEM.derivatization_shifts["delta_cd3"]
 DELTA_DEUTEROACYLATED = CHEM.derivatization_shifts["delta_cd3co"]
 
 # Пути из paths.json
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from tests.conftest import PROJECT_ROOT
+
 TEST_SETS_ROOT = PROJECT_ROOT / PATHS.test_sets_dir
 TEST_SETS = sorted([p for p in TEST_SETS_ROOT.glob("set_*") if p.is_dir()])
 

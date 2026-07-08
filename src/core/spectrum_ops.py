@@ -189,6 +189,21 @@ def _row_to_brutto(row, element_order=None):
     return "".join(parts) if parts else None
 
 
+# -- CSV column name mapper (IMP-11) -------------------------------------------
+# Единый маппинг имён колонок CSV → mass / intensity, используется
+# load_spectrum() и app.py
+CSV_COLUMN_MAPPER = {
+    "m/z": "mass",
+    "M/Z": "mass",
+    "mz": "mass",
+    "mass": "mass",
+    "Intensity": "intensity",
+    "I": "intensity",
+    "int": "intensity",
+    "Int": "intensity",
+}
+
+
 def load_spectrum(
     path,
     mapper=None,
@@ -239,19 +254,11 @@ def load_spectrum(
 
     df.columns = [c.strip() for c in df.columns]
 
-    _default_mapper = {
-        "m/z": "mass",
-        "M/Z": "mass",
-        "mz": "mass",
-        "Intensity": "intensity",
-        "I": "intensity",
-    }
-
-    final_mapper = _default_mapper.copy()
+    _default_mapper = CSV_COLUMN_MAPPER.copy()
     if mapper:
-        final_mapper.update(mapper)
+        _default_mapper.update(mapper)
 
-    df = df.rename(columns=final_mapper)
+    df = df.rename(columns=_default_mapper)
 
     logger.debug(
         "Файл %r: колонки после rename: %r",

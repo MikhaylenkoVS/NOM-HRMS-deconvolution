@@ -1162,15 +1162,10 @@ class App(tk.Tk):
             ):
                 df = pd.read_csv(path, sep=sep)
                 df.columns = [c.strip() for c in df.columns]
-                col_map = {}
-                for c in df.columns:
-                    lc = c.lower()
-                    if lc in ("m/z", "mz", "mass"):
-                        col_map[c] = "mass"
-                    elif lc in ("i", "intensity", "int"):
-                        col_map[c] = "intensity"
-                if col_map:
-                    df = df.rename(columns=col_map)
+                # Единый маппинг из spectrum_ops
+                from src.core.spectrum_ops import CSV_COLUMN_MAPPER
+
+                df = df.rename(columns=CSV_COLUMN_MAPPER)
                 if "mass" not in df.columns or "intensity" not in df.columns:
                     raise ValueError(
                         f"{key}: колонки mass/intensity не найдены. "

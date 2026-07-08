@@ -33,13 +33,11 @@ def embed_figure(fig, parent, toolbar=True):
     canvas.get_tk_widget().pack(fill="both", expand=True)
 
 
-def clear_canvas(self, parent: ttk.Frame):
+def clear_canvas(parent: ttk.Frame):
     """Remove all child widgets from a frame and close open figures.
 
     Parameters
     ----------
-    self : object
-        Unused; kept for call-site compatibility.
     parent : tkinter.ttk.Frame
         Frame whose children will be destroyed.
 

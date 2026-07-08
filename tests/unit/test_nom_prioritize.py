@@ -1,6 +1,7 @@
 """Test NOM prioritization with real test-set data."""
 
 import pandas as pd
+from tests.conftest import TEST_SETS_ROOT
 from nomspectra.spectrum import Spectrum
 from src.core.spectrum_ops import (
     assign_formulas_simple,
@@ -22,7 +23,7 @@ def test_nom_distance_known_values():
 
 def test_nom_prioritize_on_set_01():
     """NOM-prioritize doesn't break assignment on real data."""
-    df = pd.read_csv("data/test_sets/set_01/original.csv")
+    df = pd.read_csv(TEST_SETS_ROOT / "set_01" / "original.csv")
     cfg = FormulaSearchConfig(
         elements=("C", "H", "O", "N"),
         ranges={"C": (1, 50), "H": (4, 100), "O": (0, 20), "N": (0, 6)},
