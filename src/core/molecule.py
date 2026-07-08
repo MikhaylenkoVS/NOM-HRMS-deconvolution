@@ -245,7 +245,7 @@ def calculate_IHD(formula: Dict[str, int]) -> float:
     H = formula.get("H", 0)
     N = formula.get("N", 0)
     X = sum(formula.get(hal, 0) for hal in ["F", "Cl", "Br", "I"])
-    return (2 * C + 2 + N - H - X) / 2
+    return max(0.0, (2 * C + 2 + N - H - X) / 2)
 
 
 def add_formula(base: Dict[str, int], delta: Dict[str, int], k: int = 1) -> None:

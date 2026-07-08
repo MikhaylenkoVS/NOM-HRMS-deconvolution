@@ -148,12 +148,13 @@ def dbe_from_counts(counts: dict[str, int]) -> float:
     Returns
     -------
     float
-        DBE (rings plus pi-bonds), computed as ``1 + C - H/2 + N/2``.
+        DBE (rings plus pi-bonds), computed as ``max(0, 1 + C - H/2 + N/2)``.
+        Negative values are clamped to zero (DBE < 0 is chemically meaningless).
     """
     c = counts.get("C", 0)
     h = counts.get("H", 0)
     n = counts.get("N", 0)
-    return 1 + c - h / 2.0 + n / 2.0
+    return max(0.0, 1 + c - h / 2.0 + n / 2.0)
 
 
 def _row_to_brutto(row, element_order=None):
@@ -656,12 +657,8 @@ def assign_formulas_simple(
                 nc = counts.get("N", 0) / c_val
                 ndist = _nom_distance(hc, oc)
                 dbe = dbe_from_counts(counts)
-                # Штраф за DBE: penalize DBE outside [0, 20] (typical NOM)
-                dbe_pen = 0.0
-                if dbe < 0:
-                    dbe_pen = abs(dbe) * 0.5
-                elif dbe > 20:
-                    dbe_pen = (dbe - 20) * 0.5
+                # Штраф за DBE > 20 (выше верхней границы типичного NOM)
+                dbe_pen = (dbe - 20) * 0.5 if dbe > 20 else 0.0
                 # Штраф за высокий N/C (N > 30% от C редко для NOM)
                 nc_pen = nc * 2.0 if nc > 0.3 else 0.0
                 score = abs_ppm[li] + nom_weight * ndist + dbe_pen + nc_pen

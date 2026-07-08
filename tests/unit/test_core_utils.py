@@ -258,8 +258,8 @@ class TestCalculateIHD:
         assert result == 4.0
 
     def test_empty_dict(self):
-        """Empty dict → 0."""
-        assert calculate_IHD({}) == 1.0  # (0 + 2 + 0 - 0 - 0) / 2 = 1
+        """Empty dict → 1 (DBE formula gives 1 even for zero atoms)."""
+        assert calculate_IHD({}) == 1.0
 
 
 # ===================================================================
