@@ -2,7 +2,7 @@ Metadata-Version: 2.4
 Name: nom-analyzer
 Version: 0.4.0
 Summary: NOM-HRMS functional-group analyzer — deconvolution, formula assignment, homologous series detection
-Author-email: "Mikhaylenko V.S." <mikhaylenko@example.com>
+Author-email: "Mikhaylenko V.S." <mikhaylenko@gmail.com>
 License: MIT
 Project-URL: Homepage, https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution
 Project-URL: Repository, https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution
