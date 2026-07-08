@@ -1,0 +1,50 @@
+Metadata-Version: 2.4
+Name: nom-analyzer
+Version: 0.4.0
+Summary: NOM-HRMS functional-group analyzer — deconvolution, formula assignment, homologous series detection
+Author-email: "Mikhaylenko V.S." <mikhaylenko@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution
+Project-URL: Repository, https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.24
+Requires-Dist: pandas>=2.0
+Requires-Dist: matplotlib>=3.7
+Requires-Dist: nomspectra>=1.0.0
+Requires-Dist: rdkit>=2023.9
+Requires-Dist: Pillow>=9.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: black>=24.0; extra == "dev"
+Requires-Dist: flake8>=7.0; extra == "dev"
+Provides-Extra: raw
+Requires-Dist: comtypes>=1.1.14; extra == "raw"
+Dynamic: license-file
+
+# NOM HRMS Deconvolution
+
+Проект для дешифровки масс-спектров NOM (HPLC-HRMS).
+
+## Структура проекта
+
+- src/ — исходный код (ядро алгоритмов, IO, утилиты)
+- data/ref_data — маленькие эталонные наборы данных
+- data/test_sets — наборы для regression-тестов
+- tests/ — pytest-тесты
+- tools/ — служебные скрипты и утилиты
+- docs/ — документация (описания источников данных, архитектуры)
+
+## External code
+- `external/usrednenie_spectrov_i_hromatogramm` — сторонний проект по усреднению спектров и хроматограмм.
+  - Используется как источник алгоритмов / вспомогательных функций.
+  - Исходный автор и лицензия указаны в `external/LICENSE.txt`.
