@@ -47,5 +47,9 @@ logs/
 # файлы Python — кеш байткода помельче
 *.pyc
 *.pyo
-*$py.classnom_analyzer.egg-info/
+*$py.class
+
+# Python packaging
+nom_analyzer.egg-info/
+nom_hrms_fga.egg-info/
 NOM-HRMS-deconvolution/
