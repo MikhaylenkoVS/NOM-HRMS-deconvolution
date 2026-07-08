@@ -53,3 +53,4 @@ logs/
 nom_analyzer.egg-info/
 nom_hrms_fga.egg-info/
 NOM-HRMS-deconvolution/
+*.egg-info/
