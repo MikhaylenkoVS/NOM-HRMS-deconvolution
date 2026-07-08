@@ -9,7 +9,7 @@
 
 ## English
 
-**Software name:** NOM-HRMS-derivatization
+**Software name:** NOM-HRMS-FGA
 
 **Description:** Open-source Python software for deconvolution of high-resolution
 mass spectra (HPLC-HRMS) of natural organic matter (NOM) / humic substances.

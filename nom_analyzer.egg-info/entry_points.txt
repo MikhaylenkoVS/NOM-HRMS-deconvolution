@@ -1,2 +1,0 @@
-[console_scripts]
-nom-analyzer = src.app:main

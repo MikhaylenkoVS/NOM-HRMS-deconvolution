@@ -236,9 +236,6 @@ class App(tk.Tk):
         self.dacet_var = tk.StringVar()
 
         # ── RAW-файлы (опционально, вместо CSV) ──
-        self.src_raw_var = tk.StringVar()
-        self.dmet_raw_var = tk.StringVar()
-        self.dacet_raw_var = tk.StringVar()
 
         # ── RT-диапазоны для усреднения RAW ──
         self.src_rt_min = tk.StringVar(value="")
@@ -445,53 +442,47 @@ class App(tk.Tk):
         files_lf.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
         files_lf.columnconfigure(1, weight=1)
 
-        # CSV-поля
-        csv_vars = [
-            ("Исходный спектр (CSV):", self.src_var),
-            ("Дейтерометилирование (CSV):", self.dmet_var),
-            ("Дейтероацилирование (CSV):", self.dacet_var),
+        # Унифицированные поля: один файл на спектр (.csv или .raw) + RT
+        spec_configs = [
+            ("Исходный спектр:", self.src_var, self.src_rt_min, self.src_rt_max),
+            (
+                "Дейтерометилирование:",
+                self.dmet_var,
+                self.dmet_rt_min,
+                self.dmet_rt_max,
+            ),
+            (
+                "Дейтероацилирование:",
+                self.dacet_var,
+                self.dacet_rt_min,
+                self.dacet_rt_max,
+            ),
         ]
-        for i, (label, var) in enumerate(csv_vars):
-            row = i * 2  # каждое поле занимает 2 строки в grid
+        for i, (label, spec_var, rt_min_var, rt_max_var) in enumerate(spec_configs):
             ttk.Label(files_lf, text=label).grid(
-                row=row, column=0, sticky="w", padx=6, pady=3
+                row=i, column=0, sticky="w", padx=6, pady=3
             )
-            ttk.Entry(files_lf, textvariable=var, width=55).grid(
-                row=row, column=1, sticky="ew", padx=4, pady=3
-            )
-            ttk.Button(files_lf, text="…", command=lambda v=var: self._browse(v)).grid(
-                row=row, column=2, padx=4, pady=3
-            )
-
-        # RAW-поля + RT
-        raw_labels = ["Исходный (RAW):", "Дейтерометил. (RAW):", "Дейтероацил. (RAW):"]
-        raw_vars = [self.src_raw_var, self.dmet_raw_var, self.dacet_raw_var]
-        rt_vars = [
-            (self.src_rt_min, self.src_rt_max),
-            (self.dmet_rt_min, self.dmet_rt_max),
-            (self.dacet_rt_min, self.dacet_rt_max),
-        ]
-        for i, (label, raw_var, (rt_min, rt_max)) in enumerate(
-            zip(raw_labels, raw_vars, rt_vars)
-        ):
-            row = i * 2 + 1  # под CSV-строкой
-            ttk.Label(files_lf, text=label).grid(
-                row=row, column=0, sticky="w", padx=6, pady=2
-            )
-            ttk.Entry(files_lf, textvariable=raw_var, width=30).grid(
-                row=row, column=1, sticky="ew", padx=4, pady=2
+            ttk.Entry(files_lf, textvariable=spec_var, width=45).grid(
+                row=i, column=1, sticky="ew", padx=4, pady=3
             )
             ttk.Button(
-                files_lf, text="…", command=lambda v=raw_var: self._browse_raw(v)
-            ).grid(row=row, column=2, padx=4, pady=2)
+                files_lf, text="…", command=lambda v=spec_var: self._browse(v)
+            ).grid(row=i, column=2, padx=4, pady=3)
 
-            # RT-диапазон
+            # RT-диапазон (компактно, под полем ввода)
             rt_frame = ttk.Frame(files_lf)
-            rt_frame.grid(row=row + 1, column=1, sticky="w", padx=4, pady=(0, 4))
+            rt_frame.grid(row=i + 1, column=1, sticky="w", padx=4, pady=(0, 6))
             ttk.Label(rt_frame, text="RT, мин:").pack(side="left")
-            ttk.Entry(rt_frame, textvariable=rt_min, width=6).pack(side="left", padx=2)
+            ttk.Entry(rt_frame, textvariable=rt_min_var, width=5).pack(
+                side="left", padx=2
+            )
             ttk.Label(rt_frame, text="–").pack(side="left")
-            ttk.Entry(rt_frame, textvariable=rt_max, width=6).pack(side="left", padx=2)
+            ttk.Entry(rt_frame, textvariable=rt_max_var, width=5).pack(
+                side="left", padx=2
+            )
+            ttk.Label(rt_frame, text="(если .raw)", foreground="gray").pack(
+                side="left", padx=4
+            )
 
         load_lf = ttk.LabelFrame(p, text="📥  Загрузка и диапазон масс")
         load_lf.grid(row=1, column=0, sticky="ew", padx=8, pady=6)
@@ -852,21 +843,9 @@ class App(tk.Tk):
 
     # ── Запуск ────────────────────────────────────────────────────────────────
 
-    def _browse_raw(self, var: tk.StringVar):
-        """Browse for a ThermoRAW (.raw) file."""
-        path = filedialog.askopenfilename(
-            filetypes=[("RAW files", "*.raw"), ("All files", "*.*")]
-        )
-        if path:
-            var.set(path)
-
-    def _resolve_path(self, csv_var, raw_var, rt_min_var, rt_max_var, label):
+    def _resolve_path(self, spec_var, rt_min_var, rt_max_var, label):
         """Return the actual CSV path, auto-detecting RAW→CSV if needed."""
-        csv_path = csv_var.get().strip()
-        raw_path = raw_var.get().strip() if raw_var else ""
-
-        # Унифицированный путь: один источник (CSV или RAW)
-        path = csv_path or raw_path
+        path = spec_var.get().strip()
         if not path:
             raise ValueError(f"[{label}] Укажите файл (.csv или .raw)")
 
@@ -874,7 +853,7 @@ class App(tk.Tk):
             raise FileNotFoundError(f"[{label}] Файл не найден: {path}")
 
         # Автоопределение: если .raw → усреднить
-        if path.lower().endswith(".raw") or raw_path.lower().endswith(".raw"):
+        if path.lower().endswith(".raw"):
             try:
                 rt_min = float(rt_min_var.get()) if rt_min_var.get().strip() else 0.0
                 rt_max = float(rt_max_var.get()) if rt_max_var.get().strip() else 999.0
@@ -903,32 +882,19 @@ class App(tk.Tk):
             return
 
         spec_paths = []
-        for label, csv_var, raw_var, rt_min, rt_max in [
-            (
-                "Исходный",
-                self.src_var,
-                self.src_raw_var,
-                self.src_rt_min,
-                self.src_rt_max,
-            ),
-            (
-                "Дейтерометилирование",
-                self.dmet_var,
-                self.dmet_raw_var,
-                self.dmet_rt_min,
-                self.dmet_rt_max,
-            ),
+        for label, spec_var, rt_min, rt_max in [
+            ("Исходный", self.src_var, self.src_rt_min, self.src_rt_max),
+            ("Дейтерометилирование", self.dmet_var, self.dmet_rt_min, self.dmet_rt_max),
             (
                 "Дейтероацилирование",
                 self.dacet_var,
-                self.dacet_raw_var,
                 self.dacet_rt_min,
                 self.dacet_rt_max,
             ),
         ]:
             try:
-                path = self._resolve_path(csv_var, raw_var, rt_min, rt_max, label)
-                csv_var.set(path)  # записываем результат в CSV-поле для лога
+                path = self._resolve_path(spec_var, rt_min, rt_max, label)
+                spec_var.set(path)  # записываем результат для лога
                 spec_paths.append(path)
             except Exception as e:
                 messagebox.showerror("Ошибка", str(e))
