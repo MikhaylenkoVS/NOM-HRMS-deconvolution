@@ -20,9 +20,9 @@ DELTA_CD3 = 17.03448 Da per group) and deuteroacylation of hydroxyl groups
 count functional groups, assign molecular formulas in negative ion mode
 ([M–H]⁻), and enumerate candidate molecular structures.
 
-**Repository:** https://github.com/mikhaylenkovs-droid/NOM-HRMS-deconvolution
+**Repository:** https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution
 
-**Version / Tag:** v0.3.1
+**Version / Tag:** v0.4.0
 
 **Archived version (DOI):** [DOI будет присвоен при архивировании релиза на Zenodo]
 
@@ -32,21 +32,36 @@ retains its own license.
 
 **Programming language / Runtime:** Python ≥ 3.10.
 
-**Dependencies:** listed in [`requirements.txt`](requirements.txt).
-Core packages: NumPy, pandas, matplotlib, nomspectra, RDKit, Pillow, pytest.
+**Installation:**
+```bash
+# One-command install from GitHub
+pip install git+https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution.git
+
+# Or from a local clone
+git clone https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution.git
+cd NOM-HRMS-deconvolution
+pip install .
+```
+
+**Launch:**
+```bash
+nom-analyzer           # graphical interface
+python -m src          # alternative
+```
+
+**Dependencies:** listed in `pyproject.toml` (`[project.dependencies]`) and
+[`requirements.txt`](requirements.txt).
+Core packages: NumPy, pandas, matplotlib, nomspectra, RDKit, Pillow.
 The graphical interface additionally requires `tkinter` (a system package on
 some Linux distributions, e.g. `apt install python3-tk`).
 
 **Reproduction (minimal example):**
 
 ```bash
-# 1. Create an environment and install dependencies
-pip install -r requirements.txt
+# 1. Install
+pip install git+https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution.git
 
-# 2. Run the built-in end-to-end test over the bundled synthetic sets
-python -m src.core.pipeline --test
-
-# 3. Run the automated test suite (28 tests)
+# 2. Run the automated test suite (129 tests)
 pytest
 ```
 
@@ -73,9 +88,9 @@ DELTA_CD3 = 17.03448 Да на группу) и дейтероацилирова
 режиме отрицательных ионов ([M–H]⁻) и перечислять возможные молекулярные
 структуры.
 
-**Репозиторий:** https://github.com/mikhaylenkovs-droid/NOM-HRMS-deconvolution
+**Репозиторий:** https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution
 
-**Версия / тег:** v0.3.1
+**Версия / тег:** v0.4.0
 
 **Архивная версия (DOI):** [DOI будет присвоен при архивировании релиза на Zenodo]
 
