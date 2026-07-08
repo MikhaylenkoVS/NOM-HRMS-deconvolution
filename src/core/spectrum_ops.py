@@ -485,6 +485,10 @@ def _neutral_to_ion_mass(neutral_mass: float, ion_mode: str) -> float:
     if ion_mode in ("[m-h]-", "m-h", "mh-"):
         return neutral_mass - CHEM.proton_mass
 
+    # положительный режим [M]+ : вычитаем только массу электрона
+    if ion_mode in ("[m]+", "m+", "[m+]"):
+        return neutral_mass - CHEM.electron_mass
+
     # положительный режим [M+H]+ : добавляем массу протона
     if ion_mode in ("[m+h]+", "m+h", "mh+"):
         return neutral_mass + CHEM.proton_mass
@@ -585,6 +589,9 @@ def assign_formulas_simple(
     if ion_mode_lower in ("[m-h]-", "m-h", "mh-"):
         gen_min = mass_min_local + CHEM.proton_mass
         gen_max = mass_max_local + CHEM.proton_mass
+    elif ion_mode_lower in ("[m]+", "m+", "[m+]"):
+        gen_min = mass_min_local + CHEM.electron_mass
+        gen_max = mass_max_local + CHEM.electron_mass
     elif ion_mode_lower in ("[m+h]+", "m+h", "mh+"):
         gen_min = mass_min_local - CHEM.proton_mass
         gen_max = mass_max_local - CHEM.proton_mass
@@ -925,7 +932,7 @@ def assign_formulas(
 
     # Выводим ion_mode из sign, если не передан явно
     if ion_mode == CHEM.default_ion_mode and _sign is not None:
-        sign_map = {"-": "[M-H]-", "+": "[M+H]+", "0": "neutral"}
+        sign_map = {"-": "[M-H]-", "+": "[M]+", "0": "neutral"}
         ion_mode = sign_map.get(str(_sign), CHEM.default_ion_mode)
 
     if mode == "simple":
