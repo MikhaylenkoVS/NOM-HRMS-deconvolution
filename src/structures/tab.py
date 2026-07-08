@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import Optional
 import pandas as pd
-from src.ui import *
+from src.ui import BG, ACCENT, PANEL
 from .rdkit_utils import fragment_to_rdkit, RDKIT_OK, save_mol, save_png
 from .widgets import StructureCard
 

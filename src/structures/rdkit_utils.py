@@ -16,7 +16,7 @@ try:
 except ImportError:
     RDKIT_OK = False
 
-from src.ui import *
+from src.ui import IMG_W, IMG_H
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ

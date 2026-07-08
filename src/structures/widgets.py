@@ -2,7 +2,7 @@
 import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from src.ui import *
+from src.ui import BG, FG, ACCENT, PANEL, BTN, WARN, FONT, MONO, IMG_W, IMG_H
 from src.structures.rdkit_utils import (
     RDKIT_OK,
     PIL_OK,

@@ -16,7 +16,6 @@ import warnings
 import sys
 from pathlib import Path
 from typing import Optional
-from rdkit import *
 import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
