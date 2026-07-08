@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nom-analyzer"
+version = "0.4.0"
+description = "NOM-HRMS functional-group analyzer — deconvolution, formula assignment, homologous series detection"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Mikhaylenko V.S.", email = "mikhaylenko@example.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "nomspectra>=1.0.0",
+    "rdkit>=2023.9",
+    "Pillow>=9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=24.0",
+    "flake8>=7.0",
+]
+raw = [
+    "comtypes>=1.1.14",
+]
+
+[project.scripts]
+nom-analyzer = "src.app:main"
+
+[project.urls]
+Homepage = "https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution"
+Repository = "https://github.com/MikhaylenkoVS/NOM-HRMS-deconvolution"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+exclude = ["tests*", "external*", "docs*"]
+
+[tool.setuptools.package-data]
+src = ["configs/*.json"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+markers = [
+    "slow: slow tests",
+    "integration: integration tests",
+    "unit: unit tests",
+    "smoke: smoke tests",
+]

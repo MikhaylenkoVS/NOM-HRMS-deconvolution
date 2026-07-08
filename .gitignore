@@ -47,4 +47,4 @@ logs/
 # файлы Python — кеш байткода помельче
 *.pyc
 *.pyo
-*$py.class
+*$py.classnom_analyzer.egg-info/
