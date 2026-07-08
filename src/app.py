@@ -519,7 +519,7 @@ class App(tk.Tk):
         ttk.Combobox(
             form_lf,
             textvariable=self.sign_var,
-            values=["-", "+", "0"],
+            values=["-", "+"],
             width=5,
             state="readonly",
         ).grid(row=0, column=1, sticky="w", padx=4, pady=3)
