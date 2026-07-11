@@ -16,6 +16,7 @@ __pycache__/
 build/
 dist/
 *.spec
+!NOM_HRMS_FGA.spec
 
 # резервные копии, бэкапы
 *.bak
