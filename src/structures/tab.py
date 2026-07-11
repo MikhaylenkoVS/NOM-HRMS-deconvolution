@@ -63,12 +63,6 @@ class StructureViewerTab(ttk.Frame):
             ctrl, text="🔄 Обновить список", command=self._refresh_peak_list
         ).pack(side="left", padx=4)
 
-        ttk.Separator(ctrl, orient="vertical").pack(side="left", fill="y", padx=8)
-
-        ttk.Label(ctrl, text="Макс. вариантов:").pack(side="left", padx=(0, 4))
-        self.max_var = tk.StringVar(value="12")
-        ttk.Entry(ctrl, textvariable=self.max_var, width=5).pack(side="left", padx=4)
-
         ttk.Button(ctrl, text="▶ Найти структуры", command=self._run_search).pack(
             side="left", padx=8
         )
@@ -179,7 +173,7 @@ class StructureViewerTab(ttk.Frame):
         brutto = row.get("brutto", "")
         n_cooh = int(row.get("N_COOH", 0))
         n_oh = int(row.get("N_OH", 0))
-        max_b = int(self.max_var.get() or 12)
+        max_bases = 12  # разумный максимум для поиска фрагментов
 
         if not brutto:
             messagebox.showwarning(
@@ -192,7 +186,7 @@ class StructureViewerTab(ttk.Frame):
         self._clear_cards()
 
         t = threading.Thread(
-            target=self._search_worker, args=(brutto, n_cooh, n_oh, max_b), daemon=True
+            target=self._search_worker, args=(brutto, n_cooh, n_oh, max_bases), daemon=True
         )
         t.start()
 

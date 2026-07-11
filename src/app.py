@@ -364,6 +364,8 @@ class App(tk.Tk):
         if result_df is not None and not result_df.empty:
             self._fill_result_table(result_df)
             self._auto_plot_hist()
+            # Автообновление списка соединений во вкладке Структуры
+            self._refresh_structures_tab()
         else:
             self._log("[WARN] Результирующая таблица пуста.", color=WARN)
 
@@ -608,6 +610,8 @@ class App(tk.Tk):
                    command=lambda: self._plot_hist("N_OH")).pack(side="left", padx=4)
         ttk.Button(ctrl, text="💾 Экспорт CSV",
                    command=self._export_csv).pack(side="left", padx=4)
+        ttk.Button(ctrl, text="📂 Импорт CSV",
+                   command=self._import_csv).pack(side="left", padx=4)
 
         # Левая часть — таблица (без колонок пропусков)
         tbl_frame = ttk.Frame(frame)
@@ -1196,7 +1200,10 @@ class App(tk.Tk):
             except Exception:
                 pass
 
-        # Обновить список структур, если вкладка открыта
+        self._refresh_structures_tab()
+
+    def _refresh_structures_tab(self):
+        """Обновить выпадающий список во вкладке Структуры."""
         if hasattr(self, "tab_struct") and self.tab_struct is not None:
             try:
                 self.tab_struct._refresh_peak_list()
@@ -1219,6 +1226,83 @@ class App(tk.Tk):
             return
         setattr(self, f"_sort_{col}_asc", not ascending)
         self._fill_result_table(self.result_df)
+
+    # ── Импорт CSV ────────────────────────────────────────────────────
+
+    def _import_csv(self):
+        """Загрузить result_table.csv, заполнить таблицу и структуры."""
+        path = filedialog.askopenfilename(
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            df = pd.read_csv(path, sep=";", encoding="utf-8-sig")
+        except Exception:
+            # пробуем другие разделители
+            try:
+                df = pd.read_csv(path, sep=",", encoding="utf-8")
+            except Exception as e:
+                messagebox.showerror("Ошибка импорта", str(e))
+                return
+
+        self.result_df = df
+        self._log(f"[INFO] Импортировано: {path} ({len(df)} строк)", color=OK)
+        self._set_status(f"Импортировано {len(df)} соединений.")
+        self._fill_result_table(df)
+        self._auto_plot_hist()
+        self._refresh_structures_tab()
+
+    # ── Импорт папки ──────────────────────────────────────────────────
+
+    _SPECTRUM_PATTERNS = {
+        "src": ["original", "src", "source", "исходный", "orig"],
+        "dmet": ["deutermethyl", "dmet", "cd3", "дейтерометил"],
+        "dacet": ["deuteroacyl", "dacet", "cd3co", "дейтероацил"],
+    }
+
+    def _import_folder(self):
+        """Автоопределение трёх спектров в папке по шаблонам имён."""
+        folder = filedialog.askdirectory(title="Выберите папку со спектрами")
+        if not folder:
+            return
+
+        import os, glob
+        csv_files = glob.glob(os.path.join(folder, "*.csv"))
+        if not csv_files:
+            messagebox.showwarning("Нет файлов", f"В папке нет .csv файлов: {folder}")
+            return
+
+        found = {"src": None, "dmet": None, "dacet": None}
+        for f in csv_files:
+            name = os.path.basename(f).lower()
+            for key, patterns in self._SPECTRUM_PATTERNS.items():
+                if found[key] is None and any(p in name for p in patterns):
+                    found[key] = f
+                    break
+
+        missing = [k for k, v in found.items() if v is None]
+        if missing:
+            # пробуем по порядку: первый — src, второй — dmet, третий — dacet
+            csv_files.sort()
+            for key in missing:
+                for f in csv_files:
+                    if f not in found.values():
+                        found[key] = f
+                        break
+
+        self.src_var.set(found["src"] or "")
+        self.dmet_var.set(found["dmet"] or "")
+        self.dacet_var.set(found["dacet"] or "")
+
+        found_count = sum(1 for v in found.values() if v)
+        self._log(
+            f"[INFO] Папка: {folder} → найдено {found_count}/3 спектров", color=OK)
+        if found_count < 3:
+            messagebox.showwarning(
+                "Не все спектры",
+                f"Автоматически найдено {found_count} из 3 спектров. Проверьте оставшиеся поля вручную."
+            )
 
     def _export_csv(self):
         if self.result_df is None:
