@@ -625,6 +625,8 @@ def assign_formulas_simple(
 
     table["brutto"] = None
     table["assign"] = False
+    # Новая колонка: все формулы-кандидаты в пределах ppm-окна (фича #2)
+    table["all_candidates"] = None
 
     for idx, row in table.iterrows():
         mass_obs = float(row["mass"])
@@ -637,13 +639,14 @@ def assign_formulas_simple(
         if not mask.any():
             continue
 
+        global_indices = np.where(mask)[0]
+
         if nom_prioritize:
             # NOM-приоритизация: score = |ppm| + nom_weight * nom_distance(H/C, O/C)
             #                          + dbe_penalty + nc_penalty
-            local_indices = np.where(mask)[0]
             best_local: int | None = None
             best_score = float("inf")
-            for li in local_indices:
+            for li in global_indices:
                 formula_str = cand_formulas[li]
                 try:
                     counts = parse_formula(formula_str)
@@ -676,12 +679,20 @@ def assign_formulas_simple(
                 continue
             chosen_global = int(best_local)
         else:
-            # Original behaviour: pick candidate with smallest ppm
-            best_local = int(np.argmin(abs_ppm[mask]))
-            global_indices = np.where(mask)[0]
-            chosen_global = int(global_indices[best_local])
+            # По минимальному |ppm|
+            sorted_order = np.argsort(abs_ppm[mask])
+            chosen_global = int(global_indices[sorted_order[0]])
 
-        best_formula = cand_formulas[chosen_global]
+        # Сортируем кандидатов по возрастанию |ppm| (для all_candidates)
+        sorted_order = np.argsort(abs_ppm[mask])
+        sorted_global = global_indices[sorted_order]
+
+        # Сохраняем все формулы-кандидаты (упорядочены по ppm)
+        all_candidates_list = [str(cand_formulas[i]) for i in sorted_global]
+        table.at[idx, "all_candidates"] = all_candidates_list
+
+        # Лучшая формула (по выбранному критерию: NOM-приоритет или минимальный ppm)
+        best_formula = str(cand_formulas[chosen_global])
         table.at[idx, "brutto"] = best_formula
         table.at[idx, "assign"] = True
 
@@ -1201,7 +1212,7 @@ def build_result_table(src, df_dmet, df_dacet):
     base = (
         src.table.loc[
             src.table.get("assign", pd.Series(False, index=src.table.index)) == True
-        ][["mass", "intensity", "brutto"]]
+        ][["mass", "intensity", "brutto", "all_candidates"]]
         .copy()
         .reset_index(drop=True)
     )
@@ -1236,6 +1247,7 @@ def build_result_table(src, df_dmet, df_dacet):
                 "mass",
                 "intensity",
                 "brutto",
+                "all_candidates",
                 "N_COOH",
                 "N_OH",
                 "missing_dmet",

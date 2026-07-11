@@ -705,6 +705,8 @@ class App(tk.Tk):
         vsb.pack(side="right", fill="y")
         hsb.pack(side="bottom", fill="x")
         self.result_tree.pack(fill="both", expand=True)
+        # Двойной клик по строке → выбор альтернативной формулы (фича #2)
+        self.result_tree.bind("<Double-1>", self._on_formula_double_click)
 
         self.hist_frame = ttk.Frame(frame)
         self.hist_frame.pack(fill="x", padx=8, pady=4)
@@ -1033,6 +1035,7 @@ class App(tk.Tk):
             ("missing_dmet", []),
             ("missing_dacet", []),
             ("brutto", ""),
+            ("all_candidates", []),
         ]:
             if col not in df.columns:
                 df[col] = fill
@@ -1042,7 +1045,7 @@ class App(tk.Tk):
                 )
 
         warn_count = 0
-        for _, r in df.iterrows():
+        for i, (_, r) in enumerate(df.iterrows()):
             try:
                 n_cooh = int(r.get("N_COOH", 0))
                 n_oh = int(r.get("N_OH", 0))
@@ -1054,24 +1057,136 @@ class App(tk.Tk):
             missing_a = r.get("missing_dacet", [])
             has_missing = bool(missing_d) or bool(missing_a)
 
+            # Визуальный индикатор: если есть альтернативные формулы-кандидаты
+            brutto = r.get("brutto", "")
+            candidates = r.get("all_candidates", None)
+            has_alternatives = isinstance(candidates, list) and len(candidates) > 1
+            brutto_display = f"{brutto}  ▾" if has_alternatives else brutto
+
             vals = (
                 f"{r['mass']:.5f}" if pd.notna(r.get("mass")) else "?",
-                r.get("brutto", ""),
+                brutto_display,
                 n_cooh,
                 n_oh,
                 str(missing_d),
                 str(missing_a),
             )
-            tag = "warn" if has_missing else ""
+            tags = []
+            if has_missing:
+                tags.append("warn")
+            if has_alternatives:
+                tags.append("has_alt")
+            tag = tuple(tags) if tags else ""
             if has_missing:
                 warn_count += 1
-            self.result_tree.insert("", "end", values=vals, tags=(tag,))
+            self.result_tree.insert("", "end", iid=str(i), values=vals, tags=tag)
 
         self.result_tree.tag_configure("warn", foreground=WARN)
+        self.result_tree.tag_configure("has_alt", font=("Consolas", 9, "bold"))
         self._log(
             f"[DEBUG] Таблица: {len(df)} строк, {warn_count} с пропусками.",
             color="info",
         )
+
+    # ── Выбор альтернативной формулы (фича #2) ──────────────────────────────
+
+    def _on_formula_double_click(self, event):
+        """Двойной клик по строке таблицы — выбор формулы из кандидатов."""
+        selection = self.result_tree.selection()
+        if not selection:
+            return
+        iid = selection[0]
+        try:
+            idx = int(iid)
+        except ValueError:
+            return
+
+        if self.result_df is None or idx >= len(self.result_df):
+            return
+
+        row = self.result_df.iloc[idx]
+        candidates = row.get("all_candidates", None)
+        if not isinstance(candidates, list) or len(candidates) <= 1:
+            return  # только один кандидат — нечего выбирать
+
+        current_brutto = row.get("brutto", "")
+
+        # Диалоговое окно с выпадающим списком
+        dialog = tk.Toplevel(self)
+        dialog.title("Выбор брутто-формулы")
+        dialog.geometry("380x160")
+        dialog.configure(bg=BG)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        # Центрируем относительно родителя
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - 380) // 2
+        y = self.winfo_y() + (self.winfo_height() - 160) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        tk.Label(
+            dialog,
+            text=f"m/z = {row['mass']:.5f}  —  выберите формулу:",
+            bg=BG, fg=FG, font=("Segoe UI", 10),
+        ).pack(padx=12, pady=(12, 8))
+
+        combo_var = tk.StringVar(value=current_brutto)
+        combo = ttk.Combobox(
+            dialog, textvariable=combo_var, values=candidates,
+            state="readonly", width=30,
+        )
+        combo.pack(padx=12, pady=4)
+
+        def _on_ok():
+            new_formula = combo_var.get()
+            if new_formula and new_formula != current_brutto:
+                self._apply_formula_change(idx, new_formula)
+            dialog.destroy()
+
+        def _on_cancel():
+            dialog.destroy()
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=12)
+        ttk.Button(btn_frame, text="OK", command=_on_ok).pack(side="left", padx=4)
+        ttk.Button(btn_frame, text="Отмена", command=_on_cancel).pack(side="left", padx=4)
+
+        combo.bind("<Return>", lambda e: _on_ok())
+        combo.focus_set()
+
+    def _apply_formula_change(self, idx: int, new_formula: str):
+        """Применяет выбор новой формулы: обновляет result_df, таблицу, графики."""
+        old_formula = self.result_df.at[idx, "brutto"]
+        self.result_df.at[idx, "brutto"] = new_formula
+        self._log(
+            f"[INFO] Строка {idx}: формула изменена «{old_formula}» → «{new_formula}»",
+            color=OK,
+        )
+
+        # Обновить отображение в Treeview
+        row = self.result_df.iloc[idx]
+        candidates = row.get("all_candidates", None)
+        has_alternatives = isinstance(candidates, list) and len(candidates) > 1
+        brutto_display = f"{new_formula}  ▾" if has_alternatives else new_formula
+
+        vals = list(self.result_tree.item(str(idx), "values"))
+        vals[1] = brutto_display  # индекс 1 = колонка «Формула»
+        self.result_tree.item(str(idx), values=vals)
+
+        # Перестроить Van Krevelen, если уже был построен
+        if self._vk_figure is not None:
+            try:
+                self._plot_van_krevelen()
+            except Exception:
+                pass
+
+        # Обновить список структур, если вкладка открыта
+        if hasattr(self, "tab_struct") and self.tab_struct is not None:
+            try:
+                self.tab_struct._refresh_peak_list()
+            except Exception:
+                pass
 
     def _sort_tree(self, col: str):
         if self.result_df is None:
