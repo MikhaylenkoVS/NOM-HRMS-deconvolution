@@ -53,7 +53,7 @@ python -m src          # alternative
 git clone https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 cd NOM-HRMS-FGA
 pip install -e ".[dev]"
-python build_exe.py    # produces dist/NOM_HRMS_FGA.exe (~80 MB)
+python build_exe.py    # produces dist/NOM_HRMS_FGA.exe (~120 MB)
 ```
 
 **Dependencies:** listed in `pyproject.toml` (`[project.dependencies]`) and
@@ -128,7 +128,7 @@ python -m src          # альтернативный способ
 git clone https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 cd NOM-HRMS-FGA
 pip install -e ".[dev]"
-python build_exe.py    # создаёт dist/NOM_HRMS_FGA.exe (~80 МБ)
+python build_exe.py    # создаёт dist/NOM_HRMS_FGA.exe (~120 МБ)
 ```
 
 **Зависимости:** перечислены в файлах `pyproject.toml` (`[project.dependencies]`)
