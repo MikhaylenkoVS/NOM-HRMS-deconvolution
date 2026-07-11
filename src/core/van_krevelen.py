@@ -49,12 +49,13 @@ TITLE: str = "Van Krevelen Diagram"
 # --- Параметры сетки ---
 GRID_ENABLED: bool = True
 GRID_STYLE: str = "--"
-GRID_ALPHA: float = 0.4
+GRID_ALPHA: float = 0.25
+GRID_COLOR: str = "#cccccc"
 
 # --- Параметры точек (scatter plot) ---
 SCATTER_CMAP: str = "YlOrRd"
-SCATTER_EDGECOLOR: str = "#313244"   # тёмный, видимый на тёмном фоне
-SCATTER_LINEWIDTH: float = 0.3
+SCATTER_EDGECOLOR: str = "#444444"
+SCATTER_LINEWIDTH: float = 0.5
 SCATTER_ALPHA: float = 0.85
 # Размер точки для минимальной и максимальной интенсивности
 SCATTER_SIZE_MIN: float = 20.0
@@ -66,11 +67,11 @@ SCATTER_SIZE_FALLBACK: float = 100.0
 COLORBAR_LABEL: str = "Number of –COOH groups"
 
 # --- Параметры областей NOM ---
-NOM_REGION_ALPHA: float = 0.12
-NOM_LABEL_FONTSIZE: float = 9
-NOM_LABEL_ALPHA: float = 0.7
+NOM_REGION_ALPHA: float = 0.22
+NOM_LABEL_FONTSIZE: float = 10
+NOM_LABEL_ALPHA: float = 0.85
 NOM_LABEL_WEIGHT: str = "bold"
-NOM_LABEL_COLOR: str = "#333333"    # тёмный текст на белом фоне
+NOM_LABEL_COLOR: str = "#1a1a1a"    # почти чёрный на белом фоне
 
 # ======================================================================
 # ОБЛАСТИ NOM НА ДИАГРАММЕ
@@ -82,32 +83,32 @@ NOM_LABEL_COLOR: str = "#333333"    # тёмный текст на белом ф
 NOM_REGIONS: list[dict] = [
     {
         "name": "Lipids",
-        "color": "#F4A582",  # light red/orange
+        "color": "#E8A87C",  # насыщенный персиковый
         "vertices": [(0.0, 1.5), (0.3, 1.5), (0.3, 2.2), (0.0, 2.2)],
     },
     {
         "name": "Proteins",
-        "color": "#92C5DE",  # light blue
+        "color": "#76B5D4",  # насыщенный голубой
         "vertices": [(0.3, 1.5), (0.55, 1.5), (0.55, 2.2), (0.3, 2.2)],
     },
     {
         "name": "Carbohydrates",
-        "color": "#B2ABD2",  # light purple
+        "color": "#9B8EC4",  # насыщенный фиолетовый
         "vertices": [(0.6, 1.5), (1.2, 1.5), (1.2, 2.2), (0.6, 2.2)],
     },
     {
         "name": "Lignin",
-        "color": "#A6D96A",  # light green
+        "color": "#7BC86C",  # насыщенный зелёный
         "vertices": [(0.1, 0.7), (0.45, 0.7), (0.45, 1.5), (0.1, 1.5)],
     },
     {
         "name": "Tannins",
-        "color": "#FDAE61",  # light orange
+        "color": "#F0A45A",  # насыщенный оранжевый
         "vertices": [(0.5, 0.5), (0.9, 0.5), (0.9, 1.5), (0.5, 1.5)],
     },
     {
         "name": "Condensed aromatics\n(black carbon)",
-        "color": "#B3B3B3",  # light grey
+        "color": "#A0A0A0",  # насыщенный серый
         "vertices": [(0.0, 0.2), (0.2, 0.2), (0.2, 0.7), (0.0, 0.7)],
     },
 ]
@@ -305,13 +306,16 @@ def create_van_krevelen_plot(
     # ── Оси ───────────────────────────────────────────────────────────
     ax.set_xlim(*X_LIM)
     ax.set_ylim(*Y_LIM)
-    ax.set_xlabel(X_LABEL)
-    ax.set_ylabel(Y_LABEL)
-    ax.set_title(TITLE)
+    ax.set_xlabel(X_LABEL, color="#222222", fontsize=12)
+    ax.set_ylabel(Y_LABEL, color="#222222", fontsize=12)
+    ax.set_title(TITLE, color="#222222", fontsize=14, weight="bold")
+    ax.tick_params(colors="#222222", labelsize=10)
+    for spine in ax.spines.values():
+        spine.set_color("#444444")
 
     # ── Сетка ─────────────────────────────────────────────────────────
     if GRID_ENABLED:
-        ax.grid(True, linestyle=GRID_STYLE, alpha=GRID_ALPHA)
+        ax.grid(True, linestyle=GRID_STYLE, alpha=GRID_ALPHA, color=GRID_COLOR)
 
     fig.tight_layout()
 
