@@ -1062,7 +1062,7 @@ class App(tk.Tk):
             from src.core import find_and_visualize_molecules
             result = find_and_visualize_molecules(
                 brutto, num_cooh=n_cooh, num_oh=n_oh,
-                max_bases=4, show_images=False,
+                max_bases=8, show_images=False,
             )
             molecules = result.get("molecules", [])
             self.after(0, lambda: self._show_structure_preview(molecules, brutto))

@@ -488,6 +488,37 @@ FRAGMENT_LIBRARY = {
         "attachment_points": 5,
         "description": "Пиран",
     },
+    # === АЦИКЛИЧЕСКИЕ АЗОТ-СОДЕРЖАЩИЕ ФРАГМЕНТЫ ===
+    "aminomethyl": {
+        "heavy_formula": {"C": 1, "N": 1},
+        "ihd": 0,
+        "attachment_points": 2,
+        "description": "CH2-NH (первичный амин)",
+    },
+    "imine": {
+        "heavy_formula": {"C": 1, "N": 1},
+        "ihd": 1,
+        "attachment_points": 2,
+        "description": "CH=N (имин)",
+    },
+    "nitrile": {
+        "heavy_formula": {"C": 1, "N": 1},
+        "ihd": 2,
+        "attachment_points": 1,
+        "description": "C≡N (нитрил)",
+    },
+    "amide_link": {
+        "heavy_formula": {"C": 1, "N": 1, "O": 1},
+        "ihd": 1,
+        "attachment_points": 2,
+        "description": "CO-NH (амидный линкер)",
+    },
+    "ethylamine": {
+        "heavy_formula": {"C": 2, "N": 1},
+        "ihd": 0,
+        "attachment_points": 2,
+        "description": "CH2-CH2-NH (этиламиновый мостик)",
+    },
 }
 # === ФУНКЦИОНАЛЬНЫЕ ГРУППЫ ===
 FUNCTIONAL_GROUPS = {
@@ -1182,6 +1213,58 @@ def create_i():
     return MoleculeFragment("i", {"I": 1}, 0, ["I"], [], [0])
 
 
+# ── Ациклические азот-содержащие фрагменты ─────────────────────────────────
+
+def create_aminomethyl():
+    """CH2-NH-  (первичный амин, 2 точки присоединения)."""
+    return MoleculeFragment(
+        "aminomethyl", {"C": 1, "N": 1}, 0,
+        ["C", "N"],
+        [(0, 1, 1)],
+        [0, 1],
+    )
+
+
+def create_imine():
+    """CH=N-  (имин, 2 точки присоединения)."""
+    return MoleculeFragment(
+        "imine", {"C": 1, "N": 1}, 1,
+        ["C", "N"],
+        [(0, 1, 2)],
+        [0, 1],
+    )
+
+
+def create_nitrile():
+    """C≡N  (нитрил, 1 точка присоединения при C)."""
+    return MoleculeFragment(
+        "nitrile", {"C": 1, "N": 1}, 2,
+        ["C", "N"],
+        [(0, 1, 3)],
+        [0],
+    )
+
+
+def create_amide_link():
+    """-CO-NH-  (амидный мостик, 2 точки присоединения)."""
+    return MoleculeFragment(
+        "amide_link", {"C": 1, "N": 1, "O": 1}, 1,
+        ["C", "O", "N"],
+        [(0, 1, 2), (0, 2, 1)],
+        [0, 2],
+    )
+
+
+def create_ethylamine():
+    """-CH2-CH2-NH-  (этиламиновый мостик, 2 точки)."""
+    return MoleculeFragment(
+        "ethylamine", {"C": 2, "N": 1}, 0,
+        ["C", "C", "N"],
+        [(0, 1, 1), (1, 2, 1)],
+        [0, 2],
+    )
+
+
 # Словарь всех фабричных функций
 ALL_FRAGMENTS = {
     "methylene": create_methylene,
@@ -1229,6 +1312,11 @@ ALL_FRAGMENTS = {
     "tetrahydropyran": create_tetrahydropyran,
     "dihydropyran": create_dihydropyran,
     "pyran": create_pyran,
+    "aminomethyl": create_aminomethyl,
+    "imine": create_imine,
+    "nitrile": create_nitrile,
+    "amide_link": create_amide_link,
+    "ethylamine": create_ethylamine,
     "cooh": create_cooh,
     "oh": create_oh,
     "cho": create_cho,

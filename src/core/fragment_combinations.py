@@ -97,7 +97,13 @@ def find_fragment_combinations(
     for el, n in func_heavy.items():
         base_target[el] = base_target.get(el, 0) - n
         if base_target[el] < 0:
-            return []  # функционалки уже «перебили» формулу
+            # Функциональные группы «перерасходуют» атомы — пробуем без них
+            if num_cooh > 0 or num_oh > 0:
+                return find_fragment_combinations(
+                    target_heavy_formula, target_ihd,
+                    num_cooh=0, num_oh=0, max_bases=max_bases,
+                )
+            return []
 
     base_target = {el: n for el, n in base_target.items() if n > 0}
 
