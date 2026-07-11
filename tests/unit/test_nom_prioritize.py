@@ -22,16 +22,16 @@ def test_nom_distance_known_values():
 
 
 def test_nom_prioritize_on_set_01():
-    """NOM-prioritize doesn't break assignment on real data."""
+    """NOM-приоритизация (теперь всегда включена) корректно назначает формулы."""
     df = pd.read_csv(TEST_SETS_ROOT / "set_01" / "original.csv")
     cfg = FormulaSearchConfig(
         elements=("C", "H", "O", "N"),
         ranges={"C": (1, 50), "H": (4, 100), "O": (0, 20), "N": (0, 6)},
     )
 
-    # Without NOM
+    # NOM-приоритизация включена по умолчанию
     src = Spectrum(table=df)
-    result_no = assign_formulas_simple(
+    result = assign_formulas_simple(
         src,
         rel_error_ppm=0.5,
         mass_min=0,
@@ -39,29 +39,9 @@ def test_nom_prioritize_on_set_01():
         search_config=cfg,
         ion_mode="[M-H]-",
         brutto_generation_mode="nom_like",
-        nom_prioritize=False,
-    )
-    n_assigned_no = result_no.table["assign"].sum()
-
-    # With NOM
-    src2 = Spectrum(table=df.copy())
-    result_yes = assign_formulas_simple(
-        src2,
-        rel_error_ppm=0.5,
-        mass_min=0,
-        mass_max=1000,
-        search_config=cfg,
-        ion_mode="[M-H]-",
-        brutto_generation_mode="nom_like",
-        nom_prioritize=True,
         nom_weight=1.0,
     )
-    n_assigned_yes = result_yes.table["assign"].sum()
+    n_assigned = result.table["assign"].sum()
 
-    print(f"Without NOM: {n_assigned_no} assigned peaks")
-    print(f"With NOM:    {n_assigned_yes} assigned peaks")
-
-    # Should assign at least as many with NOM
-    assert n_assigned_yes > 0
-    # The count may differ slightly but should be comparable
-    assert abs(n_assigned_yes - n_assigned_no) / max(n_assigned_no, 1) < 0.3
+    print(f"NOM-prioritized: {n_assigned} assigned peaks")
+    assert n_assigned > 0

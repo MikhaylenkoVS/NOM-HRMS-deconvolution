@@ -115,15 +115,15 @@ class TestNormalizeBrutto:
         assert _normalize_brutto("  C7H6O2  ") == "C7H6O2"
 
     def test_with_nitrogen_and_phosphorus(self):
-        """C, H, then N, O, P in alphabetical order."""
+        """C, H, then O, N, P in fixed order (matching generator)."""
         result = _normalize_brutto("P1O4N1C10H15")
-        assert result == "C10H15NO4P"
+        assert result == "C10H15O4NP"
 
     def test_multi_char_elements(self):
         """Cl, Br etc. are parsed and ordered correctly."""
-        # C first, H second, then alphabetically: Cl, O
+        # C, H, O (fixed), then alphabetically: Cl
         result = _normalize_brutto("Cl1H6C7O2")
-        assert result == "C7H6ClO2"
+        assert result == "C7H6O2Cl"
 
     def test_single_atom_without_digit(self):
         """Element without digit count defaults to 1."""

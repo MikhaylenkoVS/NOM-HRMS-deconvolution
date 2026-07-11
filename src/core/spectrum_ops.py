@@ -526,14 +526,13 @@ def assign_formulas_simple(
     search_config: FormulaSearchConfig | None = None,
     brutto_generation_mode: str = "nom_like",  # "nom_like" или "soft"
     ion_mode: str = CHEM.default_ion_mode,  # тип иона; по умолчанию из chemistry.json
-    nom_prioritize: bool = False,  # включить NOM-приоритизацию
-    nom_weight: float = 1.0,  # вес NOM-расстояния: score = |ppm| + nom_weight * nom_dist
+    nom_weight: float = 1.0,  # вес NOM-расстояния в score
 ):
     """Assign brutto formulas by brute-force CHON enumeration.
 
     Generates candidate CHON formulas over the mass window, converts them to
-    m/z according to ``ion_mode``, and picks for each peak the formula with
-    the smallest ppm deviation within ``rel_error_ppm``.
+    m/z according to ``ion_mode``, and picks the most NOM-plausible formula
+    among all candidates within ``rel_error_ppm``.
 
     Parameters
     ----------
@@ -549,23 +548,20 @@ def assign_formulas_simple(
         Passed to the candidate generator. Default ``"nom_like"``.
     ion_mode : str, optional
         Ionization mode for the neutral-to-ion conversion. Default ``"[M-H]-"``.
-    nom_prioritize : bool, optional
-        If True, break ties by proximity to NOM regions (H/C, O/C space).
-        Default False for backward compatibility.
     nom_weight : float, optional
         Weight for the NOM-distance term in the composite score:
-        ``score = |ppm| + nom_weight * nom_distance``. Default 1.0.
+        ``score = nom_weight * nom_distance + penalties``. Default 1.0.
 
     Returns
     -------
     nomspectra.spectrum.Spectrum
-        The same spectrum with ``table["brutto"]`` (formula str or None) and
-        ``table["assign"]`` (bool) columns filled in.
+        The same spectrum with ``table["brutto"]`` (formula str or None),
+        ``table["assign"]`` (bool), and ``table["all_candidates"]`` (list of str).
 
     Notes
     -----
-    When several candidates tie on ppm, the first generated formula wins;
-    no NOM-space tie-break is currently applied.
+    Ppm deviation is used ONLY to define the candidate set (admission window);
+    within the window, ranking is by NOM chemical plausibility, not by |ppm|.
     """
     if search_config is None:
         search_config = FormulaSearchConfig()
@@ -641,47 +637,48 @@ def assign_formulas_simple(
 
         global_indices = np.where(mask)[0]
 
-        if nom_prioritize:
-            # NOM-приоритизация: score = |ppm| + nom_weight * nom_distance(H/C, O/C)
-            #                          + dbe_penalty + nc_penalty
-            best_local: int | None = None
-            best_score = float("inf")
-            for li in global_indices:
-                formula_str = cand_formulas[li]
-                try:
-                    counts = parse_formula(formula_str)
-                except Exception:
-                    continue
-                c_val = counts.get("C", 0)
-                if c_val <= 0:
-                    continue
-                hc = counts.get("H", 0) / c_val
-                oc = counts.get("O", 0) / c_val
-                nc = counts.get("N", 0) / c_val
-                ndist = _nom_distance(hc, oc)
-                dbe = dbe_from_counts(counts)
-                # Штраф за DBE > 20 (выше верхней границы типичного NOM)
-                dbe_pen = (dbe - 20) * 0.5 if dbe > 20 else 0.0
-                # Штраф за высокий N/C (N > 30% от C редко для NOM)
-                nc_pen = nc * 2.0 if nc > 0.3 else 0.0
-                # Штраф за высокий N при низком O (N>3 и O/N<0.5 — химически нехарактерно для NOM)
-                n_abs = counts.get("N", 0)
-                o_abs = counts.get("O", 0)
-                if n_abs > 3 and o_abs / n_abs < 0.5:
-                    n_abs_pen = (n_abs - 3) * 2.0
-                else:
-                    n_abs_pen = 0.0
-                score = abs_ppm[li] + nom_weight * ndist + dbe_pen + nc_pen + n_abs_pen
-                if score < best_score:
-                    best_score = score
-                    best_local = li
-            if best_local is None:
+        # NOM-приоритизация: выбираем лучшую формулу по хим. правдоподобию
+        # (ppm внутри окна НЕ учитывается как критерий — только как допуск)
+        best_local: int | None = None
+        best_score = float("inf")
+        for li in global_indices:
+            formula_str = cand_formulas[li]
+            try:
+                counts = parse_formula(formula_str)
+            except Exception:
                 continue
-            chosen_global = int(best_local)
-        else:
-            # По минимальному |ppm|
+            c_val = counts.get("C", 0)
+            if c_val <= 0:
+                continue
+            hc = counts.get("H", 0) / c_val
+            oc = counts.get("O", 0) / c_val
+            nc = counts.get("N", 0) / c_val
+            ndist = _nom_distance(hc, oc)
+            dbe = dbe_from_counts(counts)
+            # Штраф за DBE > 20 (выше верхней границы типичного NOM)
+            dbe_pen = (dbe - 20) * 0.5 if dbe > 20 else 0.0
+            # Штраф за высокий N/C (N > 30% от C редко для NOM)
+            nc_pen = nc * 2.0 if nc > 0.3 else 0.0
+            # Штраф за высокий абсолютный N при низком O
+            # (N>3 и O/N<0.5 — химически нехарактерно для NOM)
+            n_abs = counts.get("N", 0)
+            o_abs = counts.get("O", 0)
+            if n_abs > 3 and (o_abs == 0 or o_abs / n_abs < 0.5):
+                n_abs_pen = (n_abs - 3) * 2.0
+            else:
+                n_abs_pen = 0.0
+            # score = nom_weight * nom_dist + dbe_pen + nc_pen + n_abs_pen
+            # (ppm НЕ входит — в пределах окна все кандидаты равноправны по массе)
+            score = nom_weight * ndist + dbe_pen + nc_pen + n_abs_pen
+            if score < best_score:
+                best_score = score
+                best_local = li
+        if best_local is None:
+            # fallback: если ни один кандидат не прошёл парсинг — берём первый по ppm
             sorted_order = np.argsort(abs_ppm[mask])
             chosen_global = int(global_indices[sorted_order[0]])
+        else:
+            chosen_global = int(best_local)
 
         # Сортируем кандидатов по возрастанию |ppm| (для all_candidates)
         sorted_order = np.argsort(abs_ppm[mask])
@@ -951,8 +948,9 @@ def assign_formulas(
         ion_mode = sign_map.get(str(_sign), CHEM.default_ion_mode)
 
     if mode == "simple":
-        _np = kwargs.pop("nom_prioritize", False)
         _nw = kwargs.pop("nom_weight", 1.0)
+        # nom_prioritize больше не поддерживается — NOM-приоритизация всегда включена
+        kwargs.pop("nom_prioritize", None)
         return assign_formulas_simple(
             src,
             rel_error_ppm=rel_error_ppm,
@@ -961,7 +959,6 @@ def assign_formulas(
             search_config=search_config,
             brutto_generation_mode=brutto_generation_mode,
             ion_mode=ion_mode,
-            nom_prioritize=_np,
             nom_weight=_nw,
         )
 
