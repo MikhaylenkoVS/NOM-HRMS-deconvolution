@@ -65,8 +65,8 @@
   },
   "thresholds": {
     "min_denoise_recall": 0.90,
-    "min_assign_recall": 0.75,
-    "max_wrong_ratio": 0.20
+    "min_assign_recall": 0.90,
+    "max_wrong_ratio": 0.15
   },
   "smoke_pipeline_params": {
     "load_mass_min": 0.0,
