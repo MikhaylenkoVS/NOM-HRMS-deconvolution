@@ -438,6 +438,17 @@ def _generate_candidate_formulas(
                 )
                 for n in range(n_lo, n_hi + 1):
                     mass = base_CHO + n * M_N
+
+                    # ── Классические химические правила (жёсткие) ──────
+                    # LEWIS: сумма валентностей должна быть чётной
+                    #   4C + H + 3N + 2O ≡ H + N (mod 2)
+                    if (h + n) % 2 != 0:
+                        continue
+                    # SENIOR: необходимое условие существования связного графа
+                    #   H ≤ 2C + N + 2  (эквивалентно DBE ≥ 0)
+                    if h > 2 * c + n + 2:
+                        continue
+
                     # строим строку формулы
                     parts: list[str] = []
                     counts = {"C": c, "H": h}
