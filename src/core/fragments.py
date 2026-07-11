@@ -213,18 +213,6 @@ FRAGMENT_LIBRARY = {
         "attachment_points": 2,
         "description": "CH2",
     },
-    "ethylene": {
-        "heavy_formula": {"C": 2},
-        "ihd": 0,
-        "attachment_points": 2,
-        "description": "CH2-CH2",
-    },
-    "propylene": {
-        "heavy_formula": {"C": 3},
-        "ihd": 0,
-        "attachment_points": 2,
-        "description": "CH2-CH2-CH2",
-    },
     # Двойные связи C=C
     "alkene": {
         "heavy_formula": {"C": 2},
@@ -239,18 +227,6 @@ FRAGMENT_LIBRARY = {
         "description": "CH=CH-CH2",
     },
     # Тройные связи C≡C
-    "alkyne": {
-        "heavy_formula": {"C": 2},
-        "ihd": 2,
-        "attachment_points": 2,
-        "description": "C≡C",
-    },
-    "propynyl": {
-        "heavy_formula": {"C": 3},
-        "ihd": 2,
-        "attachment_points": 2,
-        "description": "C≡C-CH2",
-    },
     # === 5-ЧЛЕННЫЕ УГЛЕРОДНЫЕ ЦИКЛЫ ===
     "cyclopentane": {
         "heavy_formula": {"C": 5},
@@ -296,73 +272,7 @@ FRAGMENT_LIBRARY = {
         "description": "Бензол",
     },
     # === 8-ЧЛЕННЫЕ УГЛЕРОДНЫЕ ЦИКЛЫ ===
-    "cyclooctane": {
-        "heavy_formula": {"C": 8},
-        "ihd": 1,
-        "attachment_points": 8,
-        "description": "Циклооктан",
-    },
-    "cyclooctene": {
-        "heavy_formula": {"C": 8},
-        "ihd": 2,
-        "attachment_points": 8,
-        "description": "Циклооктен",
-    },
-    "cyclooctadiene": {
-        "heavy_formula": {"C": 8},
-        "ihd": 3,
-        "attachment_points": 8,
-        "description": "Циклооктадиен",
-    },
-    "cyclooctatriene": {
-        "heavy_formula": {"C": 8},
-        "ihd": 4,
-        "attachment_points": 8,
-        "description": "Циклооктатриен",
-    },
-    "cyclooctatetraene": {
-        "heavy_formula": {"C": 8},
-        "ihd": 5,
-        "attachment_points": 8,
-        "description": "Циклооктатетраен",
-    },
     # === 10-ЧЛЕННЫЕ УГЛЕРОДНЫЕ ЦИКЛЫ ===
-    "cyclodecane": {
-        "heavy_formula": {"C": 10},
-        "ihd": 1,
-        "attachment_points": 10,
-        "description": "Циклодекан",
-    },
-    "cyclodecene": {
-        "heavy_formula": {"C": 10},
-        "ihd": 2,
-        "attachment_points": 10,
-        "description": "Циклодецен",
-    },
-    "cyclodecadiene": {
-        "heavy_formula": {"C": 10},
-        "ihd": 3,
-        "attachment_points": 10,
-        "description": "Циклодекадиен",
-    },
-    "cyclodecatriene": {
-        "heavy_formula": {"C": 10},
-        "ihd": 4,
-        "attachment_points": 10,
-        "description": "Циклодекатриен",
-    },
-    "cyclodecatetraene": {
-        "heavy_formula": {"C": 10},
-        "ihd": 5,
-        "attachment_points": 10,
-        "description": "Циклодекатетраен",
-    },
-    "cyclodecapentaene": {
-        "heavy_formula": {"C": 10},
-        "ihd": 6,
-        "attachment_points": 10,
-        "description": "Циклодекапентаен",
-    },
     # === КОНДЕНСИРОВАННЫЕ СИСТЕМЫ ===
     "naphthalene": {
         "heavy_formula": {"C": 10},
@@ -494,12 +404,6 @@ FRAGMENT_LIBRARY = {
         "ihd": 0,
         "attachment_points": 2,
         "description": "CH2-NH (первичный амин)",
-    },
-    "imine": {
-        "heavy_formula": {"C": 1, "N": 1},
-        "ihd": 1,
-        "attachment_points": 2,
-        "description": "CH=N (имин)",
     },
     "nitrile": {
         "heavy_formula": {"C": 1, "N": 1},
@@ -1225,16 +1129,6 @@ def create_aminomethyl():
     )
 
 
-def create_imine():
-    """CH=N-  (имин, 2 точки присоединения)."""
-    return MoleculeFragment(
-        "imine", {"C": 1, "N": 1}, 1,
-        ["C", "N"],
-        [(0, 1, 2)],
-        [0, 1],
-    )
-
-
 def create_nitrile():
     """C≡N  (нитрил, 1 точка присоединения при C)."""
     return MoleculeFragment(
@@ -1313,7 +1207,6 @@ ALL_FRAGMENTS = {
     "dihydropyran": create_dihydropyran,
     "pyran": create_pyran,
     "aminomethyl": create_aminomethyl,
-    "imine": create_imine,
     "nitrile": create_nitrile,
     "amide_link": create_amide_link,
     "ethylamine": create_ethylamine,

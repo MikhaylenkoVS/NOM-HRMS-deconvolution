@@ -1004,7 +1004,10 @@ class App(tk.Tk):
 
             missing_d = r.get("missing_dmet", [])
             missing_a = r.get("missing_dacet", [])
-            has_missing = bool(missing_d) or bool(missing_a)
+            has_missing = (
+                (isinstance(missing_d, list) and len(missing_d) > 0) or
+                (isinstance(missing_a, list) and len(missing_a) > 0)
+            )
 
             # Визуальный индикатор: если есть альтернативные формулы-кандидаты
             brutto = r.get("brutto", "")
