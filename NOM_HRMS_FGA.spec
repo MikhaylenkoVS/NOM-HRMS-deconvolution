@@ -41,7 +41,7 @@ _hidden: list[str] = [
 # ---------------------------------------------------------------------------
 # Collect-all for complex native-extension packages
 # ---------------------------------------------------------------------------
-_collect_packages = ["rdkit", "matplotlib", "PIL", "nomspectra"]
+_collect_packages = ["rdkit", "matplotlib", "PIL", "nomspectra", "scipy"]
 _collected_datas: list[tuple[str, str]] = []
 _collected_binaries: list[tuple[str, str]] = []
 
@@ -78,10 +78,10 @@ _excludes: list[str] = [
     "IPython", "ipykernel", "jupyter", "notebook",
     "PyQt5", "PyQt6", "PySide2", "PySide6", "wx",
     "zmq", "tornado", "sqlalchemy",
-    "scipy", "sympy", "openpyxl", "xlrd", "xlsxwriter",
+    "sympy", "openpyxl", "xlrd", "xlsxwriter",
     "lxml", "html5lib", "bs4", "sphinx",
     "pytest", "setuptools", "pip", "wheel", "Cython",
-    "distutils", "test", "tests", "unittest",
+    "distutils",
 ]
 
 # ---------------------------------------------------------------------------
