@@ -22,6 +22,13 @@ import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
+# RDKit CoordGen: sp3-зигзаги вместо линейных цепочек
+try:
+    from rdkit.Chem import rdDepictor
+    rdDepictor.SetPreferCoordGen(True)
+except Exception:
+    pass
+
 matplotlib.use("TkAgg")
 # ── Импорт UI-утилит ─────────────────────────────────────────────────────────
 try:
@@ -1113,8 +1120,9 @@ class App(tk.Tk):
 
             if rdmol is not None:
                 from rdkit import Chem
-                from rdkit.Chem import Draw, AllChem
-                # 2D-координаты и скрытие C-H водородов
+                from rdkit.Chem import Draw, AllChem, rdDepictor
+                # 2D-координаты (CoordGen — зигзаги sp3)
+                rdDepictor.SetPreferCoordGen(True)
                 AllChem.Compute2DCoords(rdmol)
                 rdmol = Chem.AddHs(rdmol, explicitOnly=True)
                 final_mol = Chem.RWMol(rdmol)

@@ -500,7 +500,9 @@ def find_and_visualize_molecules(
                 except Exception:
                     pass
 
-            # Генерируем 2D-координаты (без явных водородов на углероде)
+            # Генерируем 2D-координаты (CoordGen для зигзагов sp3)
+            from rdkit.Chem import rdDepictor
+            rdDepictor.SetPreferCoordGen(True)
             AllChem.Compute2DCoords(rdkit_mol)
             # Добавляем только полярные водороды (на гетероатомах)
             rdkit_mol = Chem.AddHs(rdkit_mol, explicitOnly=True)
