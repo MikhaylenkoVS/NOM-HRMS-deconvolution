@@ -18,10 +18,12 @@ import warnings
 from pathlib import Path
 from typing import Optional
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.patches import Polygon
+from matplotlib import patheffects
 
 from src.core.molecule import parse_formula
 
@@ -68,7 +70,7 @@ NOM_REGION_ALPHA: float = 0.12
 NOM_LABEL_FONTSIZE: float = 9
 NOM_LABEL_ALPHA: float = 0.7
 NOM_LABEL_WEIGHT: str = "bold"
-NOM_LABEL_COLOR: str = "#cdd6f4"    # светлый текст на тёмном фоне (FG)
+NOM_LABEL_COLOR: str = "#333333"    # тёмный текст на белом фоне
 
 # ======================================================================
 # ОБЛАСТИ NOM НА ДИАГРАММЕ
@@ -250,6 +252,9 @@ def create_van_krevelen_plot(
 
     # ── Создание фигуры ───────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=figsize)
+    # Белый фон диаграммы
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
 
     # ── Области NOM ───────────────────────────────────────────────────
     for region in NOM_REGIONS:
@@ -274,6 +279,9 @@ def create_van_krevelen_plot(
             color=NOM_LABEL_COLOR,
             alpha=NOM_LABEL_ALPHA,
             weight=NOM_LABEL_WEIGHT,
+            path_effects=[
+                patheffects.withStroke(linewidth=2.5, foreground="white")
+            ],
         )
 
     # ── Точки ─────────────────────────────────────────────────────────
@@ -290,9 +298,9 @@ def create_van_krevelen_plot(
 
     # ── Colorbar ──────────────────────────────────────────────────────
     cbar = plt.colorbar(sc, ax=ax)
-    cbar.set_label(COLORBAR_LABEL, color="#cdd6f4")
-    cbar.ax.yaxis.set_tick_params(color="#cdd6f4")
-    plt.setp(plt.getp(cbar.ax, "yticklabels"), color="#cdd6f4")
+    cbar.set_label(COLORBAR_LABEL, color="#333333")
+    cbar.ax.yaxis.set_tick_params(color="#333333")
+    plt.setp(plt.getp(cbar.ax, "yticklabels"), color="#333333")
 
     # ── Оси ───────────────────────────────────────────────────────────
     ax.set_xlim(*X_LIM)
