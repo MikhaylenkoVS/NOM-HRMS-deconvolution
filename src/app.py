@@ -438,7 +438,7 @@ class App(tk.Tk):
     def _build_params_tab(self):
         p = self.tab_params
         p.columnconfigure(0, weight=1)
-        p.rowconfigure(1, weight=1)
+        p.rowconfigure(0, weight=1)   # подвкладки растягиваются
 
         sub_nb = ttk.Notebook(p)
         sub_nb.grid(row=0, column=0, sticky="nsew", padx=4, pady=4)
@@ -463,14 +463,37 @@ class App(tk.Tk):
         files_lf = ttk.LabelFrame(frame, text="Входные спектры")
         files_lf.grid(row=0, column=0, sticky="ew", padx=8, pady=6)
         files_lf.columnconfigure(1, weight=1)
-        for i, (label, var) in enumerate([
-            ("Исходный спектр:",     self.src_var),
-            ("Дейтерометилирование:", self.dmet_var),
-            ("Дейтероацилирование:",  self.dacet_var),
+
+        rt_configs = [
+            (self.src_var,   self.src_rt_min,   self.src_rt_max),
+            (self.dmet_var,  self.dmet_rt_min,  self.dmet_rt_max),
+            (self.dacet_var, self.dacet_rt_min, self.dacet_rt_max),
+        ]
+        for i, (label, (spec_var, rt_min_var, rt_max_var)) in enumerate([
+            ("Исходный спектр:",     rt_configs[0]),
+            ("Дейтерометилирование:", rt_configs[1]),
+            ("Дейтероацилирование:",  rt_configs[2]),
         ]):
-            ttk.Label(files_lf, text=label).grid(row=i, column=0, sticky="w", padx=6, pady=4)
-            ttk.Entry(files_lf, textvariable=var, width=55).grid(row=i, column=1, sticky="ew", padx=4, pady=4)
-            ttk.Button(files_lf, text="...", command=lambda v=var: self._browse(v)).grid(row=i, column=2, padx=4, pady=4)
+            base_row = i * 2
+            ttk.Label(files_lf, text=label).grid(
+                row=base_row, column=0, sticky="w", padx=6, pady=4)
+            ttk.Entry(files_lf, textvariable=spec_var, width=55).grid(
+                row=base_row, column=1, sticky="ew", padx=4, pady=4)
+            ttk.Button(files_lf, text="...",
+                       command=lambda v=spec_var: self._browse(v)).grid(
+                row=base_row, column=2, padx=4, pady=4)
+            # RT-диапазон (под полем ввода, для .raw)
+            rt_frame = ttk.Frame(files_lf)
+            rt_frame.grid(row=base_row + 1, column=1, columnspan=2,
+                          sticky="w", padx=4, pady=(0, 6))
+            ttk.Label(rt_frame, text="RT, мин:").pack(side="left")
+            ttk.Entry(rt_frame, textvariable=rt_min_var, width=5).pack(
+                side="left", padx=2)
+            ttk.Label(rt_frame, text="–").pack(side="left")
+            ttk.Entry(rt_frame, textvariable=rt_max_var, width=5).pack(
+                side="left", padx=2)
+            ttk.Label(rt_frame, text="(если .raw)",
+                      foreground="gray").pack(side="left", padx=4)
         out_lf = ttk.LabelFrame(frame, text="💾  Выходной файл")
         out_lf.grid(row=1, column=0, sticky="ew", padx=8, pady=6)
         out_lf.columnconfigure(0, weight=1)
