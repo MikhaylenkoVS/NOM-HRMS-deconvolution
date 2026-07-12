@@ -289,6 +289,9 @@ class App(tk.Tk):
         # Опрос очереди стартует после построения UI
         self._poll_log_queue()
 
+        # Корректное завершение при закрытии окна (крестик)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
         # Отложенные предупреждения об ошибках импорта
         if not CORE_LOADED:
             self._log(f"[ОШИБКА] src.core не загружен:\n{_CORE_ERROR}", color=WARN)
@@ -313,7 +316,28 @@ class App(tk.Tk):
         except queue.Empty:
             pass
         finally:
-            self.after(50, self._poll_log_queue)
+            self._poll_id = self.after(50, self._poll_log_queue)
+
+    def _on_close(self):
+        """Корректное завершение: остановка poll, закрытие matplotlib, выход."""
+        try:
+            self.after_cancel(self._poll_id)
+        except Exception:
+            pass
+        try:
+            import sys as _sys
+            _sys.stdout = _sys.__stdout__
+            _sys.stderr = _sys.__stderr__
+        except Exception:
+            pass
+        try:
+            import matplotlib.pyplot as _plt
+            _plt.close("all")
+        except Exception:
+            pass
+        self.destroy()
+        import os as _os
+        _os._exit(0)
 
     # ── методы лога ───────────────────────────────────────────────────────────
 
