@@ -10,7 +10,7 @@ readme = "README.md"
 license = {text = "GPL-3.0"}
 requires-python = ">=3.10"
 authors = [
-    {name = "Mikhaylenko V.S.", email = "mikhaylenko@example.com"},
+    {name = "Vladimir S. Mikhaylenko", email = "mikhaylenkovs@gmail.com"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
