@@ -37,7 +37,7 @@ jobs:
       - name: Build .exe
         shell: bash
         run: |
-          python -m PyInstaller NOM_HRMS_FGA.spec --noconfirm
+          python -m PyInstaller tools/NOM_HRMS_FGA.spec --noconfirm
           ls -lh dist/NOM_HRMS_FGA.exe
 
       - name: Smoke-test .exe

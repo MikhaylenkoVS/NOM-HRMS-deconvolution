@@ -2,7 +2,7 @@
 """PyInstaller spec for NOM HRMS FGA — single-file Windows .exe.
 
 Usage:
-    pyinstaller NOM_HRMS_FGA.spec
+    pyinstaller tools/NOM_HRMS_FGA.spec
 
 Result:  ``dist/NOM_HRMS_FGA.exe``  (≈200–400 MB, self-contained).
 """
@@ -94,7 +94,7 @@ _icon = str(_icon_path) if _icon_path.is_file() else None
 # Analysis
 # ---------------------------------------------------------------------------
 a = Analysis(
-    [str(_PROJECT / "launcher.py")],
+    [str(_PROJECT / "tools" / "launcher.py")],
     pathex=[str(_PROJECT)],
     binaries=_collected_binaries,
     datas=_all_datas,
