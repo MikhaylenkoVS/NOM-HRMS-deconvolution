@@ -193,12 +193,12 @@ pytest tests/ -q -m smoke   # только быстрые smoke-тесты
 ### Сборка `.exe`
 
 ```bash
-python build_exe.py          # сборка NOM_HRMS_FGA.exe (~120 MB)
-python build_exe.py --clean  # очистка + сборка
-python build_exe.py --test   # сборка + smoke-тест
+python tools/build_exe.py          # сборка NOM_HRMS_FGA.exe (~120 MB)
+python tools/build_exe.py --clean  # очистка + сборка
+python tools/build_exe.py --test   # сборка + smoke-тест
 ```
 
-Сборка использует [PyInstaller](https://pyinstaller.org) и конфигурацию из `NOM_HRMS_FGA.spec`.
+Сборка использует [PyInstaller](https://pyinstaller.org) и конфигурацию из `tools/NOM_HRMS_FGA.spec`.
 Автоматическая сборка при создании релиза — `.github/workflows/release_exe.yml`.
 
 ---
@@ -217,14 +217,15 @@ python build_exe.py --test   # сборка + smoke-тест
 ├── data/
 │   ├── ref_data/           # Эталонные данные
 │   └── test_sets/          # Синтетические тест-наборы (set_01..set_05)
-├── tests/                  # PyTest-тесты (129 шт.)
+├── tests/                  # PyTest-тесты (105 шт.)
 ├── docs/                   # Документация, архитектура, планы
 ├── external/               # Стороннее ПО (GPL-3.0)
 ├── .github/workflows/      # CI/CD (автосборка .exe при релизе)
 ├── assets/                 # Иконка приложения
-├── launcher.py             # Точка входа для PyInstaller (crash-safe)
-├── NOM_HRMS_FGA.spec       # Конфигурация PyInstaller
-├── build_exe.py            # Сценарий сборки .exe
+├── tools/                  # Сборка .exe (PyInstaller)
+│   ├── build_exe.py        # Сценарий сборки
+│   ├── launcher.py         # Точка входа (crash-safe)
+│   └── NOM_HRMS_FGA.spec   # Конфигурация PyInstaller
 ├── pyproject.toml          # Метаданные пакета, зависимости
 └── requirements.txt        # Зависимости (для разработки)
 ```

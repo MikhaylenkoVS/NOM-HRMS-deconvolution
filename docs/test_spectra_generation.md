@@ -18,17 +18,17 @@
 
 Папка `src/simulations` — это адаптированная копия исходной директории `generate_test_spectra/tools` подпроекта. Она содержит:
 
-- скрипты генерации тестовых наборов (включая главный скрипт, аналог `generate_test_sets.py`);  
+- скрипты генерации тестовых наборов (включая главный скрипт `generate_test_sets.py`);  
 - вспомогательные функции для:
-  - загрузки конфигурации (`config.json` для каждого набора);  
+  - загрузки конфигурации (параметры централизованы в `src/configs/pipeline.json`);  
   - вычисления точных масс по формуле;  
-  - применения дериватизации (deuteromethyl / deuteroacyl) с точными mass shift из `config`;  
+  - применения дериватизации (deuteromethyl / deuteroacyl) с точными mass shift из `chemistry.json`;  
   - моделирования инструментальной ошибки (ppm‑ошибка) и шума в спектрах;  
   - записи результирующих CSV‑файлов (`original.csv`, `deutermethylated.csv`, `deuteroacylated.csv`, `annotations.csv`, `molecules.csv`).
 
 Основной сценарий использования:
 
-- изменение параметров генерации в `config.json` для конкретного набора (диапазон масс, модель ppm‑ошибки, интенсивность шума, mass shift при дериватизации, и т.п.);  
+- изменение параметров генерации в `src/configs/pipeline.json` (секция `test_mode`: диапазон масс, модель ppm‑ошибки, интенсивность шума, mass shift при дериватизации, и т.п.);  
 - запуск главного скрипта (`main()`), который последовательно обновляет все наборы в `data/test_sets`.
 
 ---
@@ -97,16 +97,12 @@
 
 Внутри `data/test_sets/set_01` лежат следующие файлы:
 
-- `config.json` — конфигурация генерации для данного набора:
-  - `set_id` — идентификатор набора;  
-  - `mass_range` — диапазон масс;  
-  - `ppm_error` — параметры распределения инструментальной ошибки (тип, среднее, стандартное отклонение, максимальное абсолютное значение);  
-  - `noise` — параметры добавления шумовых пиков (количество, максимальная доля от максимальной интенсивности);  
-  - `derivatization.deutermethyl` и `derivatization.deuteroacyl` — настройки дериватизации:
-    - целевые группы (`target_groups`, например `["COOH"]`, `["OH"]`),  
-    - точные mass shift на одну группу (`mass_shift_per_group`, рассчитанные и вручную внесённые),  
-    - метка (`label`, например `CD3`, `CD3CO`),  
-    - выход (conversion_yield).  
+- Параметры генерации задаются централизованно в `src/configs/pipeline.json` (секция `test_mode`):
+  - `load` — диапазоны масс для исходного и дериватизированных спектров;
+  - `denoise` — параметры шумоподавления (force, intensity, quantile);
+  - `assign` — режим назначения формул (`simple`), допустимая ppm-ошибка;
+  - `series` — параметры поиска гомологических серий (ppm_tol, max_groups, allow_gaps);
+  - `match_ppm` — допуск при сравнении результатов с эталоном.
 
 - `molecules.csv` — список молекул для набора с минимальными метаданными:
   - 14 колонок:  
@@ -128,12 +124,12 @@
 
 - `annotations.csv` — полная аннотация всех пиков во всех трёх спектрах:
   - заголовок:  
-    `set_id, spectrum_type, peak_id, mass_obs, intensity, mass_theor, mass_error_ppm, compound_id, compound_number, formula, derivatization_state, adduct_type, charge, assignment_confidence, is_signal`.  
+    `set_id, spectrum_type, peak_id, mass_obs, intensity, mass_theor, exact_mass, mass_error_ppm, compound_id, compound_number, formula, derivatization_state, adduct_type, charge, assignment_confidence, is_signal`.  
   - `spectrum_type` — `original`, `deutermethylated` или `deuteroacylated`;  
   - `peak_id` — уникальный идентификатор пика внутри набора;  
   - `mass_obs` — наблюдаемая масса с учётом ppm‑ошибки (та же, что в соответствующем `*.csv`);  
   - `mass_theor` — теоретическая масса (без ошибки);  
-  - `mass_error_ppm` — разница между `mass_obs` и `mass_theor` в ppm, укладывающаяся в `max_abs` из `config.json`;  
+  - `mass_error_ppm` — разница между `mass_obs` и `mass_theor` в ppm, укладывающаяся в `match_ppm` из `pipeline.json`;  
   - `compound_id`, `compound_number`, `formula` — идентификация молекулы для сигнальных пиков; для шумовых пиков эти поля пустые;  
   - `derivatization_state` — одно из значений (`none`, `deutermethyl`, `deuteroacyl`, промежуточные степени дериватизации и т.п.);  
   - `adduct_type`, `charge` — модель аддукта (на текущем этапе для отрицательного режима используется `[M-H]-`, `charge = -1`);  
@@ -142,11 +138,11 @@
 
 ---
 
-## Использование тест‑сетoв для проверки алгоритма core.py
+## Использование тест‑сетoв для проверки алгоритма
 
 Сгенерированные наборы в `data/test_sets` предназначены для:
 
-- интеграционного тестирования алгоритма дешифровки (`core.py`):  
+- интеграционного тестирования конвейера (`src/core/pipeline.py`):  
   - подача `original.csv` / `deutermethylated.csv` / `deuteroacylated.csv` и `molecules.csv` на вход;  
   - сравнение результатов с `annotations.csv` (по `compound_id`, `derivatization_state`, `mass_obs`, допускам по ppm и т.п.);  
 

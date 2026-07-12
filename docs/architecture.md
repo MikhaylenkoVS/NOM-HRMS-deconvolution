@@ -1,4 +1,4 @@
-# Архитектура NOM-HRMS-FGA (v0.4.0)
+# Архитектура NOM-HRMS-FGA (v0.4.1)
 
 ## Общая схема
 
@@ -6,7 +6,7 @@
 Пользователь
     │
     ├─ NOM_HRMS_FGA.exe (Windows, двойной клик)
-    │      └─ launcher.py → crash-safe запуск → src.app.main()
+    │      └─ tools/launcher.py → crash-safe запуск → src.app.main()
     │
     └─ nom-hrms-fga (CLI / pip install)
            └─ src/__main__.py → src.app.main()
@@ -35,7 +35,7 @@
                │  Шаг 4: find_series (dacet)    │
                │  Шаг 5: build_result_table    │
                │  Шаг 6: visualize (опционально)│
-               │  Шаг 7: Van Krevelen (опц.)   │
+               │  Шаг 7: create_van_krevelen_plot │
                └───────────────┬───────────────┘
                                │
           ┌────────────────────┼────────────────────┐
@@ -115,13 +115,13 @@
 ## Система сборки `.exe`
 
 ```
-build_exe.py                  # Сценарий: установка deps → PyInstaller → smoke-test
+tools/build_exe.py              # Сценарий: установка deps → PyInstaller → smoke-test
     │
-    ├─ NOM_HRMS_FGA.spec      # PyInstaller: onefile, windowed, ~80 MB
-    │     ├─ launcher.py      # Точка входа с crash-safe обработкой
-    │     ├─ collect_all: rdkit, matplotlib, PIL, nomspectra
+    ├─ tools/NOM_HRMS_FGA.spec  # PyInstaller: onefile, windowed, ~120 MB
+    │     ├─ tools/launcher.py  # Точка входа с crash-safe обработкой
+    │     ├─ collect_all: rdkit, matplotlib, PIL, nomspectra, scipy
     │     ├─ datas: src/configs/*.json
-    │     └─ excludes: PyQt5, scipy, jupyter, pytest, ...
+    │     └─ excludes: PyQt5, PyQt6, jupyter, pytest, IPython, ...
     │
     └─ .github/workflows/release_exe.yml   # CI/CD: автосборка при релизе
 ```
@@ -147,7 +147,7 @@ tests/
     └── test_app_smoke.py            # Сквозной smoke-тест через smoke_runner
 ```
 
-Всего: **129 тестов**. Запуск: `pytest tests/ -q` (~2 мин).
+Всего: **105 тестов** (129 с учётом параметризованных вариантов). Запуск: `pytest tests/ -q` (~2 мин).
 
 ## Поток данных
 
@@ -164,7 +164,7 @@ load_spectrum() → Spectrum (nomspectra)
 denoise() → отфильтрованные Spectrum
    │
    ▼
-assign_formulas() → Spectrum с колонками brutto, assign
+assign_formulas() → Spectrum с колонками brutto, assign, all_candidates
    │
    ├──────────────────┐
    ▼                  ▼
@@ -173,7 +173,7 @@ find_series(dmet)    find_series(dacet)
    │                  │
    └────────┬─────────┘
             ▼
-build_result_table() → DataFrame: mass, brutto, N_COOH, N_OH, missing_*
+build_result_table() → DataFrame: mass, intensity, brutto, all_candidates, N_COOH, N_OH, missing_*
             │
             ├── create_van_krevelen_plot()
             └── экспорт CSV

@@ -2,9 +2,9 @@
 """Build NOM_HRMS_FGA.exe — standalone Windows executable.
 
 Usage:
-    python build_exe.py              # build the .exe
-    python build_exe.py --clean      # clean previous build, then rebuild
-    python build_exe.py --test       # build, then smoke-test the .exe
+    python tools/build_exe.py              # build the .exe
+    python tools/build_exe.py --clean      # clean previous build, then rebuild
+    python tools/build_exe.py --test       # build, then smoke-test the .exe
 
 Requirements:
     - Windows 10/11 x64
@@ -25,8 +25,8 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-PROJECT = Path(__file__).resolve().parent
-SPEC_FILE = PROJECT / "NOM_HRMS_FGA.spec"
+PROJECT = Path(__file__).resolve().parent.parent
+SPEC_FILE = PROJECT / "tools" / "NOM_HRMS_FGA.spec"
 DIST_DIR = PROJECT / "dist"
 BUILD_DIR = PROJECT / "build"
 EXE_NAME = "NOM_HRMS_FGA.exe"

@@ -22,7 +22,7 @@ count functional groups, assign molecular formulas in negative ion mode
 
 **Repository:** https://github.com/MikhaylenkoVS/NOM-HRMS-FGA
 
-**Version / Tag:** v0.4.0
+**Version / Tag:** v0.4.1
 
 **Archived version (DOI):** [DOI будет присвоен при архивировании релиза на Zenodo]
 
@@ -53,7 +53,7 @@ python -m src          # alternative
 git clone https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 cd NOM-HRMS-FGA
 pip install -e ".[dev]"
-python build_exe.py    # produces dist/NOM_HRMS_FGA.exe (~120 MB)
+python tools/build_exe.py    # produces dist/NOM_HRMS_FGA.exe (~120 MB)
 ```
 
 **Dependencies:** listed in `pyproject.toml` (`[project.dependencies]`) and
@@ -68,7 +68,7 @@ some Linux distributions, e.g. `apt install python3-tk`).
 # 1. Install
 pip install git+https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 
-# 2. Run the automated test suite (129 tests)
+# 2. Run the automated test suite (105 tests)
 pytest
 ```
 
@@ -97,7 +97,7 @@ DELTA_CD3 = 17.03448 Да на группу) и дейтероацилирова
 
 **Репозиторий:** https://github.com/MikhaylenkoVS/NOM-HRMS-FGA
 
-**Версия / тег:** v0.4.0
+**Версия / тег:** v0.4.1
 
 **Архивная версия (DOI):** [DOI будет присвоен при архивировании релиза на Zenodo]
 
@@ -128,7 +128,7 @@ python -m src          # альтернативный способ
 git clone https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 cd NOM-HRMS-FGA
 pip install -e ".[dev]"
-python build_exe.py    # создаёт dist/NOM_HRMS_FGA.exe (~120 МБ)
+python tools/build_exe.py    # создаёт dist/NOM_HRMS_FGA.exe (~120 МБ)
 ```
 
 **Зависимости:** перечислены в файлах `pyproject.toml` (`[project.dependencies]`)
@@ -143,7 +143,7 @@ python build_exe.py    # создаёт dist/NOM_HRMS_FGA.exe (~120 МБ)
 # 1. Установить
 pip install git+https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 
-# 2. Запустить автоматический набор тестов (129 тестов)
+# 2. Запустить автоматический набор тестов (105 тестов)
 pytest
 ```
 
