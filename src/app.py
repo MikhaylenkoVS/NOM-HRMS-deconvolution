@@ -248,6 +248,7 @@ class App(tk.Tk):
         self.src_var = tk.StringVar()
         self.dmet_var = tk.StringVar()
         self.dacet_var = tk.StringVar()
+        self.vk_color_var = tk.StringVar(value="N_COOH")
 
         # ── RAW-файлы (опционально, вместо CSV) ──
 
@@ -719,6 +720,12 @@ class App(tk.Tk):
             text="🗑 Очистить",
             command=lambda: self._clear_frame(self.vk_canvas_frame),
         ).pack(side="left", padx=4)
+        ttk.Label(ctrl, text="  Цвет по:").pack(side="left", padx=(12, 2))
+        self._vk_color_cb = ttk.Combobox(
+            ctrl, textvariable=self.vk_color_var,
+            values=["N_COOH", "N_OH"], width=8, state="readonly")
+        self._vk_color_cb.pack(side="left", padx=4)
+        self._vk_color_cb.bind("<<ComboboxSelected>>", lambda e: self._plot_van_krevelen())
         self.vk_canvas_frame = ttk.Frame(frame)
         self.vk_canvas_frame.pack(fill="both", expand=True)
         # Храним ссылку на последнюю построенную фигуру для сохранения
@@ -1416,7 +1423,7 @@ class App(tk.Tk):
             if self._vk_figure is not None:
                 plt.close(self._vk_figure)
 
-            fig = create_van_krevelen_plot(self.result_df)
+            fig = create_van_krevelen_plot(self.result_df, color_by=self.vk_color_var.get())
             self._vk_figure = fig
             embed_figure(fig, self.vk_canvas_frame)
             self._log("[DEBUG] _plot_van_krevelen: диаграмма построена", color=OK)
