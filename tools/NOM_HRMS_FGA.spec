@@ -14,9 +14,10 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, collect_submodules, collect_data_files
 
 # ---------------------------------------------------------------------------
-# Project root (this spec file's directory)
+# Spec file directory (= tools/); project root is _PROJECT.parent
 # ---------------------------------------------------------------------------
 _PROJECT = Path(SPECPATH)  # type: ignore[name-defined]  # noqa: F821
+_ROOT = _PROJECT.parent     # actual project root
 
 # ---------------------------------------------------------------------------
 # Hidden imports — modules imported lazily, dynamically, or via __import__
@@ -58,7 +59,7 @@ _hidden.extend(collect_submodules("nomspectra"))
 # Data files: config JSONs
 # ---------------------------------------------------------------------------
 _added_datas: list[tuple[str, str]] = []
-_config_dir = _PROJECT / "src" / "configs"
+_config_dir = _ROOT / "src" / "configs"
 if _config_dir.is_dir():
     for _jf in _config_dir.glob("*.json"):
         _added_datas.append((str(_jf), os.path.join("src", "configs")))
@@ -87,15 +88,15 @@ _excludes: list[str] = [
 # ---------------------------------------------------------------------------
 # Icon
 # ---------------------------------------------------------------------------
-_icon_path = _PROJECT / "assets" / "icon.ico"
+_icon_path = _ROOT / "assets" / "icon.ico"
 _icon = str(_icon_path) if _icon_path.is_file() else None
 
 # ---------------------------------------------------------------------------
 # Analysis
 # ---------------------------------------------------------------------------
 a = Analysis(
-    [str(_PROJECT / "tools" / "launcher.py")],
-    pathex=[str(_PROJECT)],
+    [str(_PROJECT / "launcher.py")],
+    pathex=[str(_PROJECT), str(_PROJECT.parent)],
     binaries=_collected_binaries,
     datas=_all_datas,
     hiddenimports=list(dict.fromkeys(_hidden)),  # deduplicate

@@ -22,6 +22,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Force UTF-8 on Windows — cp1252 chokes on Cyrillic step titles
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
