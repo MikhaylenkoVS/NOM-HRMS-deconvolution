@@ -22,6 +22,13 @@ import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
+# RDKit CoordGen: sp3-зигзаги вместо линейных цепочек
+try:
+    from rdkit.Chem import rdDepictor
+    rdDepictor.SetPreferCoordGen(True)
+except Exception:
+    pass
+
 matplotlib.use("TkAgg")
 # ── Импорт UI-утилит ─────────────────────────────────────────────────────────
 try:
@@ -201,17 +208,17 @@ class App(tk.Tk):
     the GUI log without blocking the Tk event loop.
     """
 
-    # ── Шаблоны имён для автоопределения спектров в папке ──
-    _SPECTRUM_PATTERNS = {
-        "src":  ["original", "src", "source", "исходный", "orig"],
-        "dmet": ["deutermethyl", "dmet", "cd3", "дейтерометил"],
-        "dacet": ["deuteroacyl", "dacet", "cd3co", "дейтероацил"],
-    }
-
     # ── init ──────────────────────────────────────────────────────────────────
 
     def __init__(self):
         super().__init__()
+        try:
+            import os as _os
+            _icon = _os.path.join(_os.path.dirname(__file__), '..', 'assets', 'icon.ico')
+            if _os.path.exists(_icon):
+                self.iconbitmap(_icon)
+        except Exception:
+            pass
         self.title("NOM HRMS FGA")
         self.geometry("1200x760")
         self.configure(bg=BG)
@@ -241,7 +248,6 @@ class App(tk.Tk):
         self.src_var = tk.StringVar()
         self.dmet_var = tk.StringVar()
         self.dacet_var = tk.StringVar()
-        self._folder_path_var = tk.StringVar()
 
         # ── RAW-файлы (опционально, вместо CSV) ──
 
@@ -259,8 +265,8 @@ class App(tk.Tk):
         self.mass_max_var = tk.StringVar(value=str(_GUI_DEFAULTS["load_mass_max"]))
         self.noise_force_var = tk.StringVar(value=str(_GUI_DEFAULTS["noise_force"]))
         self.noise_int_var = tk.StringVar(value=str(_GUI_DEFAULTS["noise_intensity"]))
-        self.noise_method_var = tk.StringVar(value="force")
-        self.noise_value_var = tk.StringVar(value=str(_GUI_DEFAULTS["noise_force"]))
+        self.noise_method_var = tk.StringVar(value="intensity")
+        self.noise_value_var = tk.StringVar(value=str(_GUI_DEFAULTS["noise_intensity"]))
         self.rel_error_var = tk.StringVar(value=str(_GUI_DEFAULTS["rel_error"]))
         self.sign_var = tk.StringVar(value=str(_GUI_DEFAULTS["sign"]))
         self.ppm_tol_var = tk.StringVar(value=str(_GUI_DEFAULTS["ppm_tol"]))
@@ -372,6 +378,8 @@ class App(tk.Tk):
         if result_df is not None and not result_df.empty:
             self._fill_result_table(result_df)
             self._auto_plot_hist()
+            # Автообновление списка соединений во вкладке Структуры
+            self._refresh_structures_tab()
         else:
             self._log("[WARN] Результирующая таблица пуста.", color=WARN)
 
@@ -446,180 +454,15 @@ class App(tk.Tk):
     def _build_params_tab(self):
         p = self.tab_params
         p.columnconfigure(0, weight=1)
-        p.columnconfigure(1, weight=1)
+        p.rowconfigure(0, weight=1)   # подвкладки растягиваются
 
-        files_lf = ttk.LabelFrame(p, text="📂  Входные файлы")
-        files_lf.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
-        files_lf.columnconfigure(1, weight=1)
+        sub_nb = ttk.Notebook(p)
+        sub_nb.grid(row=0, column=0, sticky="nsew", padx=4, pady=4)
 
-        # Унифицированные поля: один файл на спектр (.csv или .raw) + RT
-        spec_configs = [
-            ("Исходный спектр:", self.src_var, self.src_rt_min, self.src_rt_max),
-            (
-                "Дейтерометилирование:",
-                self.dmet_var,
-                self.dmet_rt_min,
-                self.dmet_rt_max,
-            ),
-            (
-                "Дейтероацилирование:",
-                self.dacet_var,
-                self.dacet_rt_min,
-                self.dacet_rt_max,
-            ),
-        ]
-        for i, (label, spec_var, rt_min_var, rt_max_var) in enumerate(spec_configs):
-            base_row = i * 2
-            ttk.Label(files_lf, text=label).grid(
-                row=base_row, column=0, sticky="w", padx=6, pady=3
-            )
-            ttk.Entry(files_lf, textvariable=spec_var, width=45).grid(
-                row=base_row, column=1, sticky="ew", padx=4, pady=3
-            )
-            ttk.Button(
-                files_lf, text="…", command=lambda v=spec_var: self._browse(v)
-            ).grid(row=base_row, column=2, padx=4, pady=3)
-
-            # RT-диапазон (под полем ввода)
-            rt_frame = ttk.Frame(files_lf)
-            rt_frame.grid(row=base_row + 1, column=1, sticky="w", padx=4, pady=(0, 6))
-            ttk.Label(rt_frame, text="RT, мин:").pack(side="left")
-            ttk.Entry(rt_frame, textvariable=rt_min_var, width=5).pack(
-                side="left", padx=2
-            )
-            ttk.Label(rt_frame, text="–").pack(side="left")
-            ttk.Entry(rt_frame, textvariable=rt_max_var, width=5).pack(
-                side="left", padx=2
-            )
-            ttk.Label(rt_frame, text="(если .raw)", foreground="gray").pack(
-                side="left", padx=4
-            )
-
-        # Кнопка импорта целой папки (CSV + RAW)
-        ttk.Button(files_lf, text="📁 Импорт папки со спектрами",
-                   command=self._import_folder).grid(
-            row=len(spec_configs) * 2 + 1, column=1, sticky="w", padx=4, pady=6)
-        tk.Label(files_lf, textvariable=self._folder_path_var,
-                 foreground="gray", font=("TkDefaultFont", 8)).grid(
-            row=len(spec_configs) * 2 + 2, column=1, sticky="w", padx=4)
-
-        load_lf = ttk.LabelFrame(p, text="📥  Загрузка и диапазон масс")
-        load_lf.grid(row=1, column=0, sticky="ew", padx=8, pady=6)
-        for row, (lbl, var) in enumerate(
-            [
-                ("Разделитель CSV:", self.sep_var),
-                ("m/z min:", self.mass_min_var),
-                ("m/z max:", self.mass_max_var),
-            ]
-        ):
-            ttk.Label(load_lf, text=lbl).grid(
-                row=row, column=0, sticky="w", padx=6, pady=3
-            )
-            ttk.Entry(load_lf, textvariable=var, width=12).grid(
-                row=row, column=1, sticky="w", padx=4, pady=3
-            )
-
-        # Денойз: метод + одно значение (взаимоисключающие: intensity > quantile > force)
-        ttk.Label(load_lf, text="Шумоподавление:").grid(
-            row=4, column=0, sticky="w", padx=6, pady=3
-        )
-        noise_methods = [
-            "force",
-            "intensity",
-            "quantile",
-        ]
-        noise_method_names = {
-            "force": "Force (S/N, рекоменд. 1.5-3)",
-            "intensity": "Абс. интенсивность (рекоменд. 100)",
-            "quantile": "Квантиль (рекоменд. 0.01)",
-        }
-        self._noise_cb = ttk.Combobox(
-            load_lf,
-            textvariable=self.noise_method_var,
-            values=noise_methods,
-            width=28,
-            state="readonly",
-        )
-        self._noise_cb.grid(row=4, column=1, sticky="w", padx=4, pady=3)
-        # Set display names via a mapping (tk Combobox doesn't support dict natively)
-        self._noise_cb["values"] = [noise_method_names[m] for m in noise_methods]
-        self._noise_cb.bind("<<ComboboxSelected>>", self._on_noise_method_change)
-        # Select default: "force"
-        self._noise_cb.current(0)
-
-        ttk.Label(load_lf, text="Значение:").grid(
-            row=5, column=0, sticky="w", padx=6, pady=3
-        )
-        ttk.Entry(load_lf, textvariable=self.noise_value_var, width=12).grid(
-            row=5, column=1, sticky="w", padx=4, pady=3
-        )
-
-        form_lf = ttk.LabelFrame(p, text="🔬  Назначение брутто-формул")
-        form_lf.grid(row=1, column=1, sticky="ew", padx=8, pady=6)
-        ttk.Label(form_lf, text="Знак иона:").grid(
-            row=0, column=0, sticky="w", padx=6, pady=3
-        )
-        ttk.Combobox(
-            form_lf,
-            textvariable=self.sign_var,
-            values=["-", "+"],
-            width=5,
-            state="readonly",
-        ).grid(row=0, column=1, sticky="w", padx=4, pady=3)
-        ttk.Label(form_lf, text="Погрешность (ppm):").grid(
-            row=1, column=0, sticky="w", padx=6, pady=3
-        )
-        ttk.Entry(form_lf, textvariable=self.rel_error_var, width=8).grid(
-            row=1, column=1, sticky="w", padx=4, pady=3
-        )
-        ttk.Label(form_lf, text="Диапазоны элементов:").grid(
-            row=2, column=0, columnspan=2, sticky="w", padx=6, pady=(8, 2)
-        )
-        for i, (sym, mn, mx) in enumerate(
-            [
-                ("C", self.c_min, self.c_max),
-                ("H", self.h_min, self.h_max),
-                ("O", self.o_min, self.o_max),
-                ("N", self.n_min, self.n_max),
-            ]
-        ):
-            r = 3 + i
-            ttk.Label(form_lf, text=f"{sym}:").grid(
-                row=r, column=0, sticky="w", padx=20, pady=2
-            )
-            ef = ttk.Frame(form_lf)
-            ef.grid(row=r, column=1, sticky="w", padx=4, pady=2)
-            ttk.Entry(ef, textvariable=mn, width=5).pack(side="left")
-            ttk.Label(ef, text="–").pack(side="left", padx=2)
-            ttk.Entry(ef, textvariable=mx, width=5).pack(side="left")
-
-        ser_lf = ttk.LabelFrame(p, text="🔍  Поиск серий")
-        ser_lf.grid(row=2, column=0, sticky="ew", padx=8, pady=6)
-        ttk.Label(ser_lf, text="Допуск поиска (ppm):").grid(
-            row=0, column=0, sticky="w", padx=6, pady=3
-        )
-        ttk.Entry(ser_lf, textvariable=self.ppm_tol_var, width=8).grid(
-            row=0, column=1, sticky="w", padx=4, pady=3
-        )
-        ttk.Label(ser_lf, text="Макс. групп:").grid(
-            row=1, column=0, sticky="w", padx=6, pady=3
-        )
-        ttk.Entry(ser_lf, textvariable=self.max_groups_var, width=8).grid(
-            row=1, column=1, sticky="w", padx=4, pady=3
-        )
-        ttk.Checkbutton(
-            ser_lf, text="Разрешить пропуски в сериях", variable=self.allow_gaps_var
-        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=6, pady=4)
-
-        out_lf = ttk.LabelFrame(p, text="💾  Выходной файл")
-        out_lf.grid(row=2, column=1, sticky="ew", padx=8, pady=6)
-        out_lf.columnconfigure(0, weight=1)
-        ttk.Entry(out_lf, textvariable=self.output_csv_var, width=35).grid(
-            row=0, column=0, sticky="ew", padx=6, pady=4
-        )
-        ttk.Button(
-            out_lf, text="…", command=lambda: self._save_browse(self.output_csv_var)
-        ).grid(row=0, column=1, padx=4, pady=4)
+        self._build_params_files(sub_nb)
+        self._build_params_processing(sub_nb)
+        self._build_params_formulas(sub_nb)
+        self._build_params_series(sub_nb)
 
         try:
             run_btn = ttk.Button(
@@ -627,9 +470,113 @@ class App(tk.Tk):
             )
         except Exception:
             run_btn = ttk.Button(p, text="▶  Запустить анализ", command=self._run)
-        run_btn.grid(row=3, column=0, columnspan=2, pady=12, ipadx=20, ipady=4)
+        run_btn.grid(row=1, column=0, pady=12, ipadx=20, ipady=4)
 
-    # ── ВКЛАДКА СПЕКТРЫ ───────────────────────────────────────────────────────
+    def _build_params_files(self, nb: ttk.Notebook):
+        frame = ttk.Frame(nb)
+        nb.add(frame, text="📂  Файлы")
+        frame.columnconfigure(0, weight=1)
+        files_lf = ttk.LabelFrame(frame, text="Входные спектры")
+        files_lf.grid(row=0, column=0, sticky="ew", padx=8, pady=6)
+        files_lf.columnconfigure(1, weight=1)
+
+        rt_configs = [
+            (self.src_var,   self.src_rt_min,   self.src_rt_max),
+            (self.dmet_var,  self.dmet_rt_min,  self.dmet_rt_max),
+            (self.dacet_var, self.dacet_rt_min, self.dacet_rt_max),
+        ]
+        for i, (label, (spec_var, rt_min_var, rt_max_var)) in enumerate([
+            ("Исходный спектр:",     rt_configs[0]),
+            ("Дейтерометилирование:", rt_configs[1]),
+            ("Дейтероацилирование:",  rt_configs[2]),
+        ]):
+            base_row = i * 2
+            ttk.Label(files_lf, text=label).grid(
+                row=base_row, column=0, sticky="w", padx=6, pady=4)
+            ttk.Entry(files_lf, textvariable=spec_var, width=55).grid(
+                row=base_row, column=1, sticky="ew", padx=4, pady=4)
+            ttk.Button(files_lf, text="...",
+                       command=lambda v=spec_var: self._browse(v)).grid(
+                row=base_row, column=2, padx=4, pady=4)
+            # RT-диапазон (под полем ввода, для .raw)
+            rt_frame = ttk.Frame(files_lf)
+            rt_frame.grid(row=base_row + 1, column=1, columnspan=2,
+                          sticky="w", padx=4, pady=(0, 6))
+            ttk.Label(rt_frame, text="RT, мин:").pack(side="left")
+            ttk.Entry(rt_frame, textvariable=rt_min_var, width=5).pack(
+                side="left", padx=2)
+            ttk.Label(rt_frame, text="–").pack(side="left")
+            ttk.Entry(rt_frame, textvariable=rt_max_var, width=5).pack(
+                side="left", padx=2)
+            ttk.Label(rt_frame, text="(если .raw)",
+                      foreground="gray").pack(side="left", padx=4)
+        out_lf = ttk.LabelFrame(frame, text="💾  Выходной файл")
+        out_lf.grid(row=1, column=0, sticky="ew", padx=8, pady=6)
+        out_lf.columnconfigure(0, weight=1)
+        ttk.Entry(out_lf, textvariable=self.output_csv_var, width=50).grid(row=0, column=0, sticky="ew", padx=6, pady=4)
+        ttk.Button(out_lf, text="...", command=lambda: self._save_browse(self.output_csv_var)).grid(row=0, column=1, padx=4, pady=4)
+
+        # Кнопка импорта целой папки
+        ttk.Button(frame, text="📁 Импорт папки со спектрами",
+                   command=self._import_folder).grid(
+            row=2, column=0, sticky="w", padx=8, pady=(4, 2))
+        self._folder_path_var = tk.StringVar()
+        tk.Label(frame, textvariable=self._folder_path_var,
+                 bg=BG, fg=ACCENT, font=("Segoe UI", 8), anchor="w").grid(
+            row=3, column=0, sticky="ew", padx=12, pady=(0, 2))
+
+    def _build_params_processing(self, nb: ttk.Notebook):
+        frame = ttk.Frame(nb)
+        nb.add(frame, text="📏  Обработка")
+        frame.columnconfigure(0, weight=1)
+        load_lf = ttk.LabelFrame(frame, text="Загрузка и фильтрация")
+        load_lf.grid(row=0, column=0, sticky="ew", padx=8, pady=6)
+        for row, (lbl, var) in enumerate([
+            ("Разделитель CSV:", self.sep_var), ("m/z min:", self.mass_min_var), ("m/z max:", self.mass_max_var),
+        ]):
+            ttk.Label(load_lf, text=lbl).grid(row=row, column=0, sticky="w", padx=6, pady=3)
+            ttk.Entry(load_lf, textvariable=var, width=12).grid(row=row, column=1, sticky="w", padx=4, pady=3)
+        ttk.Label(load_lf, text="Шумоподавление:").grid(row=3, column=0, sticky="w", padx=6, pady=3)
+        noise_methods = ["force", "intensity", "quantile"]
+        noise_names = {"force": "Force (S/N, 1.5-3)", "intensity": "Абс. интенсивность (100)", "quantile": "Квантиль (0.01)"}
+        self._noise_cb = ttk.Combobox(load_lf, textvariable=self.noise_method_var, values=[noise_names[m] for m in noise_methods], width=28, state="readonly")
+        self._noise_cb.grid(row=3, column=1, sticky="w", padx=4, pady=3)
+        self._noise_cb.bind("<<ComboboxSelected>>", self._on_noise_method_change)
+        self._noise_cb.current(1)  # default = intensity
+        ttk.Label(load_lf, text="Значение:").grid(row=4, column=0, sticky="w", padx=6, pady=3)
+        ttk.Entry(load_lf, textvariable=self.noise_value_var, width=12).grid(row=4, column=1, sticky="w", padx=4, pady=3)
+
+    def _build_params_formulas(self, nb: ttk.Notebook):
+        frame = ttk.Frame(nb)
+        nb.add(frame, text="🔬  Формулы")
+        frame.columnconfigure(0, weight=1)
+        lf = ttk.LabelFrame(frame, text="Назначение брутто-формул")
+        lf.grid(row=0, column=0, sticky="ew", padx=8, pady=6)
+        ttk.Label(lf, text="Знак иона:").grid(row=0, column=0, sticky="w", padx=6, pady=3)
+        ttk.Combobox(lf, textvariable=self.sign_var, values=["-", "+"], width=5, state="readonly").grid(row=0, column=1, sticky="w", padx=4, pady=3)
+        ttk.Label(lf, text="Погрешность (ppm):").grid(row=1, column=0, sticky="w", padx=6, pady=3)
+        ttk.Entry(lf, textvariable=self.rel_error_var, width=8).grid(row=1, column=1, sticky="w", padx=4, pady=3)
+        ttk.Label(lf, text="Диапазоны элементов:").grid(row=2, column=0, columnspan=2, sticky="w", padx=6, pady=(10, 2))
+        for i, (sym, mn, mx) in enumerate([("C", self.c_min, self.c_max), ("H", self.h_min, self.h_max), ("O", self.o_min, self.o_max), ("N", self.n_min, self.n_max)]):
+            r = 3 + i
+            ttk.Label(lf, text=f"{sym}:").grid(row=r, column=0, sticky="w", padx=20, pady=2)
+            ef = ttk.Frame(lf)
+            ef.grid(row=r, column=1, sticky="w", padx=4, pady=2)
+            ttk.Entry(ef, textvariable=mn, width=5).pack(side="left")
+            ttk.Label(ef, text="-").pack(side="left", padx=2)
+            ttk.Entry(ef, textvariable=mx, width=5).pack(side="left")
+
+    def _build_params_series(self, nb: ttk.Notebook):
+        frame = ttk.Frame(nb)
+        nb.add(frame, text="🔍  Серии")
+        frame.columnconfigure(0, weight=1)
+        lf = ttk.LabelFrame(frame, text="Поиск гомологических серий")
+        lf.grid(row=0, column=0, sticky="ew", padx=8, pady=6)
+        ttk.Label(lf, text="Допуск поиска (ppm):").grid(row=0, column=0, sticky="w", padx=6, pady=3)
+        ttk.Entry(lf, textvariable=self.ppm_tol_var, width=8).grid(row=0, column=1, sticky="w", padx=4, pady=3)
+        ttk.Label(lf, text="Макс. число групп:").grid(row=1, column=0, sticky="w", padx=6, pady=3)
+        ttk.Entry(lf, textvariable=self.max_groups_var, width=8).grid(row=1, column=1, sticky="w", padx=4, pady=3)
+        ttk.Checkbutton(lf, text="Разрешить пропуски в сериях", variable=self.allow_gaps_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=6, pady=4)
 
     def _build_spectra_tab(self):
         frame = self.tab_spectra
@@ -674,56 +621,58 @@ class App(tk.Tk):
 
     def _build_result_tab(self):
         frame = self.tab_result
+        frame.columnconfigure(0, weight=3)
+        frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(1, weight=1)
+
         ctrl = ttk.Frame(frame)
-        ctrl.pack(fill="x", pady=4, padx=8)
-        ttk.Button(
-            ctrl,
-            text="📊 Гистограмма N_COOH",
-            command=lambda: self._plot_hist("N_COOH"),
-        ).pack(side="left", padx=4)
-        ttk.Button(
-            ctrl, text="📊 Гистограмма N_OH", command=lambda: self._plot_hist("N_OH")
-        ).pack(side="left", padx=4)
-        ttk.Button(ctrl, text="💾 Экспорт CSV", command=self._export_csv).pack(
-            side="left", padx=4
-        )
+        ctrl.grid(row=0, column=0, columnspan=2, sticky="ew", pady=4, padx=8)
+        ttk.Button(ctrl, text="📊 Гистограмма N_COOH",
+                   command=lambda: self._plot_hist("N_COOH")).pack(side="left", padx=4)
+        ttk.Button(ctrl, text="📊 Гистограмма N_OH",
+                   command=lambda: self._plot_hist("N_OH")).pack(side="left", padx=4)
+        ttk.Button(ctrl, text="💾 Экспорт CSV",
+                   command=self._export_csv).pack(side="left", padx=4)
+        ttk.Button(ctrl, text="📂 Импорт CSV",
+                   command=self._import_csv).pack(side="left", padx=4)
 
+        # Левая часть — таблица (без колонок пропусков)
         tbl_frame = ttk.Frame(frame)
-        tbl_frame.pack(fill="both", expand=True, padx=8, pady=4)
+        tbl_frame.grid(row=1, column=0, sticky="nsew", padx=(8, 4), pady=4)
 
-        cols = ("mass", "brutto", "N_COOH", "N_OH", "missing_dmet", "missing_dacet")
-        col_labels = [
-            "m/z",
-            "Формула",
-            "N_COOH",
-            "N_OH",
-            "Пропуски dmet",
-            "Пропуски dacet",
-        ]
-        col_widths = [110, 140, 80, 80, 150, 150]
+        cols = ("mass", "brutto", "N_COOH", "N_OH")
+        col_labels = ["m/z", "Формула", "N_COOH", "N_OH"]
+        col_widths = [120, 180, 90, 90]
 
         self.result_tree = ttk.Treeview(
-            tbl_frame, columns=cols, show="headings", height=18
-        )
+            tbl_frame, columns=cols, show="headings", height=18)
         for c, lbl, w in zip(cols, col_labels, col_widths):
-            self.result_tree.heading(
-                c, text=lbl, command=lambda _c=c: self._sort_tree(_c)
-            )
+            self.result_tree.heading(c, text=lbl,
+                                     command=lambda _c=c: self._sort_tree(_c))
             self.result_tree.column(c, width=w, anchor="center")
 
-        vsb = ttk.Scrollbar(
-            tbl_frame, orient="vertical", command=self.result_tree.yview
-        )
-        hsb = ttk.Scrollbar(
-            tbl_frame, orient="horizontal", command=self.result_tree.xview
-        )
+        vsb = ttk.Scrollbar(tbl_frame, orient="vertical",
+                            command=self.result_tree.yview)
+        hsb = ttk.Scrollbar(tbl_frame, orient="horizontal",
+                            command=self.result_tree.xview)
         self.result_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         vsb.pack(side="right", fill="y")
         hsb.pack(side="bottom", fill="x")
         self.result_tree.pack(fill="both", expand=True)
+        self.result_tree.bind("<Double-1>", self._on_formula_double_click)
+        self.result_tree.bind("<<TreeviewSelect>>", self._on_result_row_select)
+
+        # Правая часть — превью структуры
+        preview_frame = ttk.LabelFrame(frame, text="🧪  Структура")
+        preview_frame.grid(row=1, column=1, sticky="nsew", padx=(4, 8), pady=4)
+        self._structure_preview_label = tk.Label(
+            preview_frame, text="Кликните на строку\nтаблицы для просмотра",
+            bg=PANEL, fg=FG, font=("Segoe UI", 10), justify="center")
+        self._structure_preview_label.pack(expand=True, fill="both", padx=8, pady=8)
+        self._structure_preview_img = None
 
         self.hist_frame = ttk.Frame(frame)
-        self.hist_frame.pack(fill="x", padx=8, pady=4)
+        self.hist_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=8, pady=4)
 
     # ── ВКЛАДКА VAN KREVELEN ─────────────────────────────────────────────────
 
@@ -1049,6 +998,7 @@ class App(tk.Tk):
             ("missing_dmet", []),
             ("missing_dacet", []),
             ("brutto", ""),
+            ("all_candidates", []),
         ]:
             if col not in df.columns:
                 df[col] = fill
@@ -1058,7 +1008,7 @@ class App(tk.Tk):
                 )
 
         warn_count = 0
-        for _, r in df.iterrows():
+        for i, (_, r) in enumerate(df.iterrows()):
             try:
                 n_cooh = int(r.get("N_COOH", 0))
                 n_oh = int(r.get("N_OH", 0))
@@ -1068,26 +1018,244 @@ class App(tk.Tk):
 
             missing_d = r.get("missing_dmet", [])
             missing_a = r.get("missing_dacet", [])
-            has_missing = bool(missing_d) or bool(missing_a)
+            has_missing = (
+                (isinstance(missing_d, list) and len(missing_d) > 0) or
+                (isinstance(missing_a, list) and len(missing_a) > 0)
+            )
+
+            # Визуальный индикатор: если есть альтернативные формулы-кандидаты
+            brutto = r.get("brutto", "")
+            candidates = r.get("all_candidates", None)
+            has_alternatives = isinstance(candidates, list) and len(candidates) > 1
+            brutto_display = f"{brutto}  ▾" if has_alternatives else brutto
 
             vals = (
                 f"{r['mass']:.5f}" if pd.notna(r.get("mass")) else "?",
-                r.get("brutto", ""),
+                brutto_display,
                 n_cooh,
                 n_oh,
-                str(missing_d),
-                str(missing_a),
             )
-            tag = "warn" if has_missing else ""
+            tags = []
+            if has_missing:
+                tags.append("warn")
+            if has_alternatives:
+                tags.append("has_alt")
+            tag = tuple(tags) if tags else ""
             if has_missing:
                 warn_count += 1
-            self.result_tree.insert("", "end", values=vals, tags=(tag,))
+            self.result_tree.insert("", "end", iid=str(i), values=vals, tags=tag)
 
         self.result_tree.tag_configure("warn", foreground=WARN)
+        self.result_tree.tag_configure("has_alt", font=("Consolas", 9, "bold"))
         self._log(
             f"[DEBUG] Таблица: {len(df)} строк, {warn_count} с пропусками.",
             color="info",
         )
+
+    # ── Выбор альтернативной формулы (фича #2) ──────────────────────────────
+
+    # ── Превью структуры при клике на строку ─────────────────────────────
+
+    def _on_result_row_select(self, event):
+        """Один клик по строке — показать структуру в правой панели."""
+        selection = self.result_tree.selection()
+        if not selection:
+            return
+        iid = selection[0]
+        try:
+            idx = int(iid)
+        except ValueError:
+            return
+        if self.result_df is None or idx >= len(self.result_df):
+            return
+
+        row = self.result_df.iloc[idx]
+        brutto = row.get("brutto", "")
+        n_cooh = int(row.get("N_COOH", 0))
+        n_oh = int(row.get("N_OH", 0))
+
+        if not brutto:
+            self._structure_preview_label.configure(
+                text="Нет формулы\nдля этого пика")
+            return
+
+        self._structure_preview_label.configure(
+            text=f"Поиск структуры...\n{brutto}")
+
+        t = threading.Thread(target=self._load_structure_preview,
+                             args=(brutto, n_cooh, n_oh), daemon=True)
+        t.start()
+
+    def _load_structure_preview(self, brutto: str, n_cooh: int, n_oh: int):
+        """Фоновый поток: поиск структуры (first_only, таймаут 5с)."""
+        import time as _time
+        try:
+            from src.core import find_and_visualize_molecules
+            # first_only: остановиться на первой найденной комбинации
+            result = find_and_visualize_molecules(
+                brutto, num_cooh=n_cooh, num_oh=n_oh,
+                max_bases=8, show_images=False, first_only=True,
+            )
+            molecules = result.get("molecules", [])
+            self.after(0, lambda: self._show_structure_preview(molecules, brutto))
+        except Exception:
+            self.after(0, lambda: self._structure_preview_label.configure(
+                text=f"Не удалось найти\nструктуру для {brutto}"))
+
+    def _show_structure_preview(self, molecules: list, brutto: str):
+        """Отображение первой найденной структуры в панели превью."""
+        if not molecules:
+            self._structure_preview_label.configure(
+                text=f"Структуры не найдены\n{brutto}")
+            return
+
+        try:
+            from src.structures.rdkit_utils import fragment_to_rdkit, RDKIT_OK
+            from io import BytesIO
+            from PIL import Image, ImageTk
+
+            mol_info = molecules[0]
+            frag = mol_info.get("fragment_object")
+            rdmol = fragment_to_rdkit(frag) if frag is not None else None
+
+            if rdmol is not None:
+                from rdkit import Chem
+                from rdkit.Chem import Draw, AllChem, rdDepictor
+                # 2D-координаты (CoordGen — зигзаги sp3)
+                rdDepictor.SetPreferCoordGen(True)
+                AllChem.Compute2DCoords(rdmol)
+                rdmol = Chem.AddHs(rdmol, explicitOnly=True)
+                final_mol = Chem.RWMol(rdmol)
+                atoms_to_remove = []
+                for atom in final_mol.GetAtoms():
+                    if atom.GetAtomicNum() == 1:
+                        for nbr in atom.GetNeighbors():
+                            if nbr.GetAtomicNum() == 6:
+                                atoms_to_remove.append(atom.GetIdx())
+                                break
+                for idx in reversed(sorted(atoms_to_remove)):
+                    final_mol.RemoveAtom(idx)
+                rdmol = final_mol.GetMol()
+                try:
+                    Chem.SanitizeMol(rdmol)
+                except Exception:
+                    pass
+                img = Draw.MolToImage(rdmol, size=(300, 200))
+                buf = BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                pil_img = Image.open(buf)
+                self._structure_preview_img = ImageTk.PhotoImage(pil_img)
+                self._structure_preview_label.configure(
+                    image=self._structure_preview_img, text="")
+            else:
+                name = mol_info.get("name", brutto)
+                self._structure_preview_label.configure(
+                    text=f"{name}\n(нет RDKit-изображения)", image="")
+        except Exception:
+            self._structure_preview_label.configure(
+                text=f"Ошибка отрисовки\n{brutto}", image="")
+
+    def _on_formula_double_click(self, event):
+        """Двойной клик по строке таблицы — выбор формулы из кандидатов."""
+        selection = self.result_tree.selection()
+        if not selection:
+            return
+        iid = selection[0]
+        try:
+            idx = int(iid)
+        except ValueError:
+            return
+
+        if self.result_df is None or idx >= len(self.result_df):
+            return
+
+        row = self.result_df.iloc[idx]
+        candidates = row.get("all_candidates", None)
+        if not isinstance(candidates, list) or len(candidates) <= 1:
+            return  # только один кандидат — нечего выбирать
+
+        current_brutto = row.get("brutto", "")
+
+        # Диалоговое окно с выпадающим списком
+        dialog = tk.Toplevel(self)
+        dialog.title("Выбор брутто-формулы")
+        dialog.geometry("380x160")
+        dialog.configure(bg=BG)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        # Центрируем относительно родителя
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - 380) // 2
+        y = self.winfo_y() + (self.winfo_height() - 160) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        tk.Label(
+            dialog,
+            text=f"m/z = {row['mass']:.5f}  —  выберите формулу:",
+            bg=BG, fg=FG, font=("Segoe UI", 10),
+        ).pack(padx=12, pady=(12, 8))
+
+        combo_var = tk.StringVar(value=current_brutto)
+        combo = ttk.Combobox(
+            dialog, textvariable=combo_var, values=candidates,
+            state="readonly", width=30,
+        )
+        combo.pack(padx=12, pady=4)
+
+        def _on_ok():
+            new_formula = combo_var.get()
+            if new_formula and new_formula != current_brutto:
+                self._apply_formula_change(idx, new_formula)
+            dialog.destroy()
+
+        def _on_cancel():
+            dialog.destroy()
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=12)
+        ttk.Button(btn_frame, text="OK", command=_on_ok).pack(side="left", padx=4)
+        ttk.Button(btn_frame, text="Отмена", command=_on_cancel).pack(side="left", padx=4)
+
+        combo.bind("<Return>", lambda e: _on_ok())
+        combo.focus_set()
+
+    def _apply_formula_change(self, idx: int, new_formula: str):
+        """Применяет выбор новой формулы: обновляет result_df, таблицу, графики."""
+        old_formula = self.result_df.at[idx, "brutto"]
+        self.result_df.at[idx, "brutto"] = new_formula
+        self._log(
+            f"[INFO] Строка {idx}: формула изменена «{old_formula}» → «{new_formula}»",
+            color=OK,
+        )
+
+        # Обновить отображение в Treeview
+        row = self.result_df.iloc[idx]
+        candidates = row.get("all_candidates", None)
+        has_alternatives = isinstance(candidates, list) and len(candidates) > 1
+        brutto_display = f"{new_formula}  ▾" if has_alternatives else new_formula
+
+        vals = list(self.result_tree.item(str(idx), "values"))
+        vals[1] = brutto_display  # индекс 1 = колонка «Формула»
+        self.result_tree.item(str(idx), values=vals)
+
+        # Перестроить Van Krevelen, если уже был построен
+        if self._vk_figure is not None:
+            try:
+                self._plot_van_krevelen()
+            except Exception:
+                pass
+
+        self._refresh_structures_tab()
+
+    def _refresh_structures_tab(self):
+        """Обновить выпадающий список во вкладке Структуры."""
+        if hasattr(self, "tab_struct") and self.tab_struct is not None:
+            try:
+                self.tab_struct._refresh_peak_list()
+            except Exception:
+                pass
 
     def _sort_tree(self, col: str):
         if self.result_df is None:
@@ -1106,6 +1274,40 @@ class App(tk.Tk):
         setattr(self, f"_sort_{col}_asc", not ascending)
         self._fill_result_table(self.result_df)
 
+    # ── Импорт CSV ────────────────────────────────────────────────────
+
+    def _import_csv(self):
+        """Загрузить result_table.csv, заполнить таблицу и структуры."""
+        path = filedialog.askopenfilename(
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            df = pd.read_csv(path, sep=";", encoding="utf-8-sig")
+        except Exception:
+            # пробуем другие разделители
+            try:
+                df = pd.read_csv(path, sep=",", encoding="utf-8")
+            except Exception as e:
+                messagebox.showerror("Ошибка импорта", str(e))
+                return
+
+        self.result_df = df
+        self._log(f"[INFO] Импортировано: {path} ({len(df)} строк)", color=OK)
+        self._set_status(f"Импортировано {len(df)} соединений.")
+        self._fill_result_table(df)
+        self._auto_plot_hist()
+        self._refresh_structures_tab()
+
+    # ── Импорт папки ──────────────────────────────────────────────────
+
+    _SPECTRUM_PATTERNS = {
+        "src": ["original", "src", "source", "исходный", "orig"],
+        "dmet": ["deutermethyl", "dmet", "cd3", "дейтерометил"],
+        "dacet": ["deuteroacyl", "dacet", "cd3co", "дейтероацил"],
+    }
+
     def _import_folder(self):
         """Автоопределение трёх спектров в папке по шаблонам имён (CSV и RAW)."""
         folder = filedialog.askdirectory(title="Выберите папку со спектрами")
@@ -1113,11 +1315,9 @@ class App(tk.Tk):
             return
 
         import os, glob
-
         csv_files = glob.glob(os.path.join(folder, "*.csv"))
         raw_files = glob.glob(os.path.join(folder, "*.raw"))
         all_files = csv_files + raw_files
-
         if not all_files:
             messagebox.showwarning("Нет файлов", f"В папке нет .csv или .raw файлов: {folder}")
             return
@@ -1130,9 +1330,9 @@ class App(tk.Tk):
                     found[key] = f
                     break
 
-        # Если после шаблонов остались пропуски — пробуем по порядку
         missing = [k for k, v in found.items() if v is None]
         if missing:
+            # пробуем по порядку: первый — src, второй — dmet, третий — dacet
             csv_files.sort()
             for key in missing:
                 for f in csv_files:
@@ -1143,9 +1343,10 @@ class App(tk.Tk):
         self.src_var.set(found["src"] or "")
         self.dmet_var.set(found["dmet"] or "")
         self.dacet_var.set(found["dacet"] or "")
+        if hasattr(self, '_folder_path_var'):
+            self._folder_path_var.set(folder)
 
         found_count = sum(1 for v in found.values() if v)
-        self._folder_path_var.set(folder)
         self._log(
             f"[INFO] Папка: {folder} → найдено {found_count}/3 спектров", color=OK)
         if found_count < 3:
