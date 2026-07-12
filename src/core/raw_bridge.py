@@ -28,7 +28,7 @@ from __future__ import annotations
 import os
 import sys
 import csv
-from typing import Optional
+from typing import Callable, Optional
 
 import pandas as pd
 import numpy as np
@@ -76,6 +76,7 @@ def average_raw_to_csv(
     rt_min: float,
     rt_max: float,
     output_csv: Optional[str] = None,
+    progress_callback: Optional[Callable[[str], None]] = None,
 ) -> str:
     """Average a ThermoRAW file over [rt_min, rt_max] and write a CSV.
 
@@ -93,6 +94,10 @@ def average_raw_to_csv(
     output_csv : str or None, optional
         Where to write the CSV.  If ``None``, a temporary file is created
         in the same directory as *raw_path* (named ``<basename>_avrg.csv``).
+    progress_callback : callable or None, optional
+        If given, called with a short status string at key stages
+        (e.g. ``"Усреднение спектров…"``). Useful for GUI progress
+        indication.
 
     Returns
     -------
@@ -120,6 +125,8 @@ def average_raw_to_csv(
         raise FileNotFoundError(f"RAW file not found: {raw_path}")
 
     # ── open RAW file ────────────────────────────────────────────────────
+    if progress_callback:
+        progress_callback("Усреднение спектров…")
     xrf = _msfr.PyMSFileReader(raw_path)
     c_double = type(_msfr.c_double(0))  # resolve ctypes type
 
@@ -130,9 +137,13 @@ def average_raw_to_csv(
     )
 
     # Merge all scan-type segments into one spectrum
+    if progress_callback:
+        progress_callback("Объединение сегментов…")
     merged = _merge_segments(spectrum_lists)
 
     # ── write CSV ───────────────────────────────────────────────────────
+    if progress_callback:
+        progress_callback("Запись CSV…")
     if output_csv is None:
         base = os.path.splitext(os.path.basename(raw_path))[0]
         out_dir = os.path.dirname(raw_path) or "."

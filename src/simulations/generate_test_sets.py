@@ -311,7 +311,8 @@ def generate_spectra_for_set(
         Molecule records (from ``molecules.csv``).
     config : dict
         Set configuration; per-group mass shifts and noise settings come
-        from ``config["derivatization"]`` and ``config["noise"]``.
+        from ``pipeline.json`` ``test_sets`` entries (derivatization and noise
+        sections).
 
     Returns
     -------

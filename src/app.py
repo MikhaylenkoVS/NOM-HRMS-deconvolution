@@ -925,7 +925,12 @@ class App(tk.Tk):
                 f"[RAW] Усреднение {path} (RT {rt_min:.1f}–{rt_max:.1f} мин)…",
                 color=FG,
             )
+            self._set_status("Усреднение RAW-спектра…")
+            self.progress.start(10)
+            self.update_idletasks()
             path = average_raw_to_csv(path, rt_min, rt_max)
+            self.progress.stop()
+            self._set_status("Готово")
             self._log(f"[RAW] → {path}", color=OK)
 
         return path
@@ -1112,17 +1117,16 @@ class App(tk.Tk):
 
         self._structure_preview_label.configure(
             text=f"Поиск структуры...\n{brutto}")
+        self.progress.start(10)
 
         t = threading.Thread(target=self._load_structure_preview,
                              args=(brutto, n_cooh, n_oh), daemon=True)
         t.start()
 
     def _load_structure_preview(self, brutto: str, n_cooh: int, n_oh: int):
-        """Фоновый поток: поиск структуры (first_only, таймаут 5с)."""
-        import time as _time
+        """Фоновый поток: поиск структуры (first_only)."""
         try:
             from src.core import find_and_visualize_molecules
-            # first_only: остановиться на первой найденной комбинации
             result = find_and_visualize_molecules(
                 brutto, num_cooh=n_cooh, num_oh=n_oh,
                 max_bases=8, show_images=False, first_only=True,
@@ -1130,11 +1134,15 @@ class App(tk.Tk):
             molecules = result.get("molecules", [])
             self.after(0, lambda: self._show_structure_preview(molecules, brutto))
         except Exception:
-            self.after(0, lambda: self._structure_preview_label.configure(
-                text=f"Не удалось найти\nструктуру для {brutto}"))
+            self.after(0, lambda: (
+                self.progress.stop(),
+                self._structure_preview_label.configure(
+                    text=f"Не удалось найти\nструктуру для {brutto}")
+            ))
 
     def _show_structure_preview(self, molecules: list, brutto: str):
         """Отображение первой найденной структуры в панели превью."""
+        self.progress.stop()
         if not molecules:
             self._structure_preview_label.configure(
                 text=f"Структуры не найдены\n{brutto}")
@@ -1364,9 +1372,9 @@ class App(tk.Tk):
         missing = [k for k, v in found.items() if v is None]
         if missing:
             # пробуем по порядку: первый — src, второй — dmet, третий — dacet
-            csv_files.sort()
+            all_files.sort()
             for key in missing:
-                for f in csv_files:
+                for f in all_files:
                     if f not in found.values():
                         found[key] = f
                         break
@@ -1643,6 +1651,11 @@ class App(tk.Tk):
             fig.tight_layout()
             embed_figure(fig, self.hist_frame, toolbar=False)
         except Exception:
+            messagebox.showwarning(
+                "Ошибка построения гистограмм",
+                "Не удалось построить гистограммы функциональных групп.\n"
+                "Проверьте данные в таблице результатов."
+            )
             self._log(f"[ОШИБКА] _auto_plot_hist: {traceback.format_exc()}", color=WARN)
             plt.close("all")
 
