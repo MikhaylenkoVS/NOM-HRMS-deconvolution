@@ -543,10 +543,32 @@ class App(tk.Tk):
         ttk.Entry(out_lf, textvariable=self.output_csv_var, width=50).grid(row=0, column=0, sticky="ew", padx=6, pady=4)
         ttk.Button(out_lf, text="...", command=lambda: self._save_browse(self.output_csv_var)).grid(row=0, column=1, padx=4, pady=4)
 
+        # ── Пресеты ──
+        preset_lf = ttk.LabelFrame(frame, text="🎯  Пресеты параметров")
+        preset_lf.grid(row=2, column=0, sticky="ew", padx=8, pady=6)
+        self.preset_var = tk.StringVar(value="")
+        try:
+            from src.configs.presets_loader import list_presets
+            presets = list_presets()
+            preset_names = [f"{p['name']}" for p in presets]
+        except Exception:
+            presets = []
+            preset_names = ["(пресеты недоступны)"]
+        cb = ttk.Combobox(
+            preset_lf, textvariable=self.preset_var,
+            values=preset_names, state="readonly", width=40,
+        )
+        cb.pack(side="left", padx=6, pady=4)
+        ttk.Button(
+            preset_lf, text="Применить",
+            command=lambda: self._apply_preset(presets),
+        ).pack(side="left", padx=4, pady=4)
+        self._presets_data = presets
+
         # Кнопка импорта целой папки
         ttk.Button(frame, text="📁 Импорт папки со спектрами",
                    command=self._import_folder).grid(
-            row=2, column=0, sticky="w", padx=8, pady=(4, 2))
+            row=3, column=0, sticky="w", padx=8, pady=(4, 2))
         self._folder_path_var = tk.StringVar()
         tk.Label(frame, textvariable=self._folder_path_var,
                  bg=BG, fg=ACCENT, font=("Segoe UI", 8), anchor="w").grid(
@@ -1372,6 +1394,38 @@ class App(tk.Tk):
         "dmet": ["deutermethyl", "dmet", "cd3", "дейтерометил"],
         "dacet": ["deuteroacyl", "dacet", "cd3co", "дейтероацил"],
     }
+
+    def _apply_preset(self, presets: list):
+        """Применить выбранный пресет параметров."""
+        name = self.preset_var.get()
+        preset = next((p for p in presets if p["name"] == name), None)
+        if not preset:
+            return
+        params = preset.get("params", {})
+        # Масс-фильтр
+        for var, key in [(self.mass_min_var, "load_mass_min"), (self.mass_max_var, "load_mass_max")]:
+            if key in params:
+                var.set(str(params[key]))
+        # Шумоподавление
+        if "noise_intensity" in params:
+            self.noise_int_var.set(str(params["noise_intensity"]))
+        if "noise_force" in params:
+            self.noise_force_var.set(str(params["noise_force"]))
+        # Формулы
+        if "rel_error" in params:
+            self.rel_error_var.set(str(params["rel_error"]))
+        if "ppm_tol" in params:
+            self.ppm_tol_var.set(str(params["ppm_tol"]))
+        if "max_groups" in params:
+            self.max_groups_var.set(str(params["max_groups"]))
+        # Диапазоны элементов
+        er = params.get("element_ranges", {})
+        for el, (var_min, var_max) in [("C", (self.c_min, self.c_max)), ("H", (self.h_min, self.h_max)),
+                                         ("O", (self.o_min, self.o_max)), ("N", (self.n_min, self.n_max))]:
+            if el in er:
+                var_min.set(str(er[el][0]))
+                var_max.set(str(er[el][1]))
+        self._log(f"[PRESET] Применён: {name}", color="info")
 
     def _import_folder(self):
         """Автоопределение трёх спектров в папке по шаблонам имён."""
