@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: >
+  If you use NOM-HRMS-FGA in your research, please cite it using the
+  metadata below.
+title: "NOM-HRMS-FGA: Functional-group analysis of natural organic matter from HPLC–HRMS data"
+abstract: >
+  NOM-HRMS-FGA is a Python-based research software package and graphical
+  user interface (GUI) for functional-group analysis of natural organic
+  matter (NOM) using high-resolution mass spectrometry (HRMS) data from
+  liquid chromatography (HPLC) experiments. The software implements a
+  reproducible workflow for importing chromatographic–mass spectrometric
+  data, performing peak detection, matching derived functional groups, and
+  exporting analysis results for downstream interpretation.
+type: software
+version: "0.5.0"
+date-released: "2026-07-13"
+authors:
+  - family-names: "Mikhaylenko"
+    given-names: "Vladimir S."
+    orcid: "0000-0000-0000-0000"
+    affiliation: "Department of Chemistry, Lomonosov Moscow State University"
+license: "GPL-3.0-or-later"
+doi: "10.XXXX/zenodo.YYYYY"
+repository-code: "https://github.com/MikhaylenkoVS/NOM-HRMS-FGA"
+url: "https://github.com/MikhaylenkoVS/NOM-HRMS-FGA"
+keywords:
+  - "natural organic matter"
+  - "high-resolution mass spectrometry"
+  - "HPLC-HRMS"
+  - "functional group analysis"
+  - "analytical chemistry"
+  - "mass spectrometry"
+  - "chromatography"
+  - "research software"
