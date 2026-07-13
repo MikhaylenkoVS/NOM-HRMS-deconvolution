@@ -273,6 +273,7 @@ class App(tk.Tk):
         self.ppm_tol_var = tk.StringVar(value=str(_GUI_DEFAULTS["ppm_tol"]))
         self.max_groups_var = tk.StringVar(value=str(_GUI_DEFAULTS["max_groups"]))
         self.allow_gaps_var = tk.BooleanVar(value=bool(_GUI_DEFAULTS["allow_gaps"]))
+        self.isotope_filter_var = tk.BooleanVar(value=False)
         self.output_csv_var = tk.StringVar(value=str(_PATHS_CFG.default_output_csv))
         # Диапазоны элементов из pipeline.json -> formula_search.ranges
         _r = _FORMULA_RANGES
@@ -488,6 +489,7 @@ class App(tk.Tk):
         self._build_params_processing(sub_nb)
         self._build_params_formulas(sub_nb)
         self._build_params_series(sub_nb)
+        self._build_params_advanced(sub_nb)
 
         try:
             run_btn = ttk.Button(
@@ -602,6 +604,27 @@ class App(tk.Tk):
         ttk.Label(lf, text="Макс. число групп:").grid(row=1, column=0, sticky="w", padx=6, pady=3)
         ttk.Entry(lf, textvariable=self.max_groups_var, width=8).grid(row=1, column=1, sticky="w", padx=4, pady=3)
         ttk.Checkbutton(lf, text="Разрешить пропуски в сериях", variable=self.allow_gaps_var).grid(row=2, column=0, columnspan=2, sticky="w", padx=6, pady=4)
+
+    def _build_params_advanced(self, nb: ttk.Notebook):
+        frame = ttk.Frame(nb)
+        nb.add(frame, text="🧪  Фильтры")
+        frame.columnconfigure(0, weight=1)
+        lf = ttk.LabelFrame(frame, text="Дополнительные фильтры")
+        lf.grid(row=0, column=0, sticky="ew", padx=8, pady=6)
+        cb = ttk.Checkbutton(
+            lf,
+            text="🔬 Изотопный фильтр ¹³C (формула Бейнона)",
+            variable=self.isotope_filter_var,
+        )
+        cb.grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        ttk.Label(
+            lf,
+            text="Штрафует формулы, чей изотопный паттерн M+1/M\n"
+                 "отличается от теоретического более чем на 20%.\n"
+                 "Проверка — по исходному спектру до шумоподавления.",
+            font=("Segoe UI", 8),
+            foreground="#888",
+        ).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 6))
 
     def _build_spectra_tab(self):
         frame = self.tab_spectra
@@ -892,6 +915,7 @@ class App(tk.Tk):
             ppm_tol=ppm_tol,
             max_groups=max_groups,
             allow_gaps=self.allow_gaps_var.get(),
+            isotope_filter=self.isotope_filter_var.get(),
             brutto_dict=brutto_dict,
             output_csv=self.output_csv_var.get() or None,
             visualize=False,  # визуализацию делаем через GUI-вкладку

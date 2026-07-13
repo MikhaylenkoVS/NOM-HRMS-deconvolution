@@ -370,6 +370,8 @@ def run_pipeline(
     # Тест-режим
     test_mode: bool = False,
     test_sets_root=None,
+    # Изотопный фильтр
+    isotope_filter: bool = False,
 ):
     """Run the full -COOH / -OH quantification pipeline.
 
@@ -543,6 +545,8 @@ def run_pipeline(
     )
 
     try:
+        # Сохранить копию до денойза для изотопного фильтра
+        src_original = src.copy() if isotope_filter else None
         src = denoise(
             src, force=noise_force, intensity=noise_intensity, quantile=noise_quantile
         )
@@ -598,6 +602,8 @@ def run_pipeline(
             rel_error_ppm=rel_error,
             mass_min=assign_mass_min,
             mass_max=assign_mass_max,
+            isotope_filter=isotope_filter,
+            original=src_original,
         )
         n_assigned = int(src.table.get("assign", pd.Series(dtype=bool)).sum())
         stats.assigned_count = n_assigned
