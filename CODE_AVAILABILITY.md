@@ -22,7 +22,7 @@ count functional groups, assign molecular formulas in negative ion mode
 
 **Repository:** https://github.com/MikhaylenkoVS/NOM-HRMS-FGA
 
-**Version / Tag:** v0.4.2
+**Version / Tag:** v0.5.0
 
 **Archived version (DOI):** [DOI будет присвоен при архивировании релиза на Zenodo]
 
@@ -97,7 +97,7 @@ DELTA_CD3 = 17.03448 Да на группу) и дейтероацилирова
 
 **Репозиторий:** https://github.com/MikhaylenkoVS/NOM-HRMS-FGA
 
-**Версия / тег:** v0.4.2
+**Версия / тег:** v0.5.0
 
 **Архивная версия (DOI):** [DOI будет присвоен при архивировании релиза на Zenodo]
 

@@ -928,6 +928,8 @@ class App(tk.Tk):
             self._set_status("Усреднение RAW-спектра…")
             self.progress.start(10)
             self.update_idletasks()
+            self.update()  # flush pending GUI events before blocking COM call
+            # TODO(#84): вынести RAW-усреднение в фоновый поток (не блокировать GUI)
             path = average_raw_to_csv(path, rt_min, rt_max)
             self.progress.stop()
             self._set_status("Готово")
@@ -1284,7 +1286,7 @@ class App(tk.Tk):
             try:
                 self._plot_van_krevelen()
             except Exception:
-                pass
+                pass  # intentional: non-critical UI refresh
 
         self._refresh_structures_tab()
 
@@ -1294,7 +1296,7 @@ class App(tk.Tk):
             try:
                 self.tab_struct._refresh_peak_list()
             except Exception:
-                pass
+                pass  # intentional: non-critical UI refresh
 
     def _sort_tree(self, col: str):
         if self.result_df is None:
