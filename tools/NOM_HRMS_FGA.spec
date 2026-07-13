@@ -63,6 +63,11 @@ _config_dir = _ROOT / "src" / "configs"
 if _config_dir.is_dir():
     for _jf in _config_dir.glob("*.json"):
         _added_datas.append((str(_jf), os.path.join("src", "configs")))
+    # Presets subdirectory
+    _presets_dir = _config_dir / "presets"
+    if _presets_dir.is_dir():
+        for _jf in _presets_dir.glob("*.json"):
+            _added_datas.append((str(_jf), os.path.join("src", "configs", "presets")))
 
 # Also collect matplotlib's mpl-data
 _added_datas.extend(collect_data_files("matplotlib"))
