@@ -546,21 +546,19 @@ class App(tk.Tk):
         # ── Пресеты ──
         preset_lf = ttk.LabelFrame(frame, text="🎯  Пресеты параметров")
         preset_lf.grid(row=2, column=0, sticky="ew", padx=8, pady=6)
-        preset_lf.columnconfigure(0, weight=1)
         self.preset_var = tk.StringVar(value="")
         try:
             from src.configs.presets_loader import list_presets
             presets = list_presets()
             preset_names = [f"{p['name']}" for p in presets]
-        except Exception as e:
-            self._log(f"[WARN] Пресеты не загружены: {e}", color="info")
+        except Exception:
             presets = []
             preset_names = ["(пресеты недоступны)"]
         cb = ttk.Combobox(
             preset_lf, textvariable=self.preset_var,
-            values=preset_names, state="readonly", width=45,
+            values=preset_names, state="readonly", width=40,
         )
-        cb.pack(side="left", padx=6, pady=4, fill="x", expand=True)
+        cb.pack(side="left", padx=6, pady=4)
         ttk.Button(
             preset_lf, text="Применить",
             command=lambda: self._apply_preset(presets),
@@ -976,8 +974,6 @@ class App(tk.Tk):
             self._set_status("Усреднение RAW-спектра…")
             self.progress.start(10)
             self.update_idletasks()
-            self.update()  # flush pending GUI events before blocking COM call
-            # TODO(#84): вынести RAW-усреднение в фоновый поток (не блокировать GUI)
             path = average_raw_to_csv(path, rt_min, rt_max)
             self.progress.stop()
             self._set_status("Готово")
