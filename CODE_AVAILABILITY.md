@@ -24,6 +24,10 @@ count functional groups, assign molecular formulas in negative ion mode
 
 **Version / Tag:** v0.5.0
 
+**Release date:** 2026-07-13
+
+**Release URL:** https://github.com/MikhaylenkoVS/NOM-HRMS-FGA/releases/tag/v0.5.0
+
 **Archived version (DOI):** [DOI будет присвоен при архивировании релиза на Zenodo]
 
 **License:** GPL-3.0 (see `LICENSE`). Third-party code under
@@ -68,7 +72,7 @@ some Linux distributions, e.g. `apt install python3-tk`).
 # 1. Install
 pip install git+https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 
-# 2. Run the automated test suite (105 tests)
+# 2. Run the automated test suite (305 tests)
 pytest
 ```
 
@@ -143,7 +147,7 @@ python tools/build_exe.py    # создаёт dist/NOM_HRMS_FGA.exe (~120 МБ)
 # 1. Установить
 pip install git+https://github.com/MikhaylenkoVS/NOM-HRMS-FGA.git
 
-# 2. Запустить автоматический набор тестов (105 тестов)
+# 2. Запустить автоматический набор тестов (305 тестов)
 pytest
 ```
 

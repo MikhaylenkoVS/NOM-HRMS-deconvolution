@@ -315,6 +315,7 @@ def create_van_krevelen_plot(
         edgecolor=SCATTER_EDGECOLOR,
         linewidth=SCATTER_LINEWIDTH,
         alpha=SCATTER_ALPHA,
+        vmin=-0.3,  # смещение: COOH/OH=0-1 ярче нижней границы colormap
     )
 
     # ── Colorbar ──────────────────────────────────────────────────────
