@@ -16,8 +16,8 @@ src/core/pipeline.py
     python -m src.core.pipeline --test --sets-root data/test_sets
 """
 
-import sys
 import traceback
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -26,6 +26,8 @@ from src.core.van_krevelen import create_van_krevelen_plot
 import pandas as pd
 
 from src.configs import CHEM, PIPELINE, PATHS
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Импорт зависимостей из spectrum_ops
@@ -46,9 +48,8 @@ try:
     _IMPORT_ERROR: Optional[str] = None
 except Exception as _e:
     _IMPORT_ERROR = str(_e)
-    print(
+    logger.error(
         f"[PIPELINE] CRITICAL: не удалось импортировать spectrum_ops: {_e}",
-        file=sys.stderr,
     )
 
 
@@ -58,7 +59,7 @@ except Exception as _e:
 
 
 def _debug(msg: str) -> None:
-    print(f"[DEBUG] {msg}", flush=True)
+    logger.debug(msg)
 
 
 def _ppm_error(observed: float, theoretical: float) -> float:
@@ -425,7 +426,7 @@ def run_pipeline(
     # -----------------------------------------------------------------------
     if _IMPORT_ERROR:
         msg = f"[PIPELINE] Импорт spectrum_ops не удался: {_IMPORT_ERROR}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         if not test_mode:
             stats = PipelineStats()
             return PipelineRunResult(table=pd.DataFrame(), stats=stats, messages=[msg])
@@ -459,7 +460,7 @@ def run_pipeline(
             messages.append(f"[PIPELINE] ОШИБКА: файл не найден: {path}")
     if messages:
         for m in messages:
-            print(m, file=sys.stderr)
+            logger.error(m)
         return PipelineRunResult(
             table=pd.DataFrame(), stats=PipelineStats(), messages=messages
         )
@@ -491,7 +492,7 @@ def run_pipeline(
         _debug(f"src загружен: {stats.src_loaded} пиков")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА загрузки src: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         return PipelineRunResult(table=pd.DataFrame(), stats=stats, messages=[msg])
 
     try:
@@ -507,7 +508,7 @@ def run_pipeline(
         _debug(f"dmet загружен: {stats.dmet_loaded} пиков")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА загрузки dmet: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         return PipelineRunResult(table=pd.DataFrame(), stats=stats, messages=[msg])
 
     try:
@@ -523,7 +524,7 @@ def run_pipeline(
         _debug(f"dacet загружен: {stats.dacet_loaded} пиков")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА загрузки dacet: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         return PipelineRunResult(table=pd.DataFrame(), stats=stats, messages=[msg])
 
     print(
@@ -549,7 +550,7 @@ def run_pipeline(
         _debug(f"src после денойса: {stats.src_denoised} пиков")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА денойса src: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         messages.append(msg)
 
     try:
@@ -560,7 +561,7 @@ def run_pipeline(
         _debug(f"dmet после денойса: {stats.dmet_denoised} пиков")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА денойса dmet: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         messages.append(msg)
 
     try:
@@ -571,7 +572,7 @@ def run_pipeline(
         _debug(f"dacet после денойса: {stats.dacet_denoised} пиков")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА денойса dacet: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         messages.append(msg)
 
     print(
@@ -619,7 +620,7 @@ def run_pipeline(
             _debug("ВНИМАНИЕ: назначенных пиков нет!")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА assign_formulas: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         messages.append(msg)
         n_assigned = 0
 
@@ -679,7 +680,7 @@ def run_pipeline(
             _debug(f"Превью df_dmet:\n{df_dmet.head(3).to_string(index=False)}")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА find_series(dmet): {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         messages.append(msg)
 
     print(f"  Соединений с сериями CD3: {len(df_dmet)}")
@@ -725,7 +726,7 @@ def run_pipeline(
             )
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА find_series(dacet): {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         messages.append(msg)
 
     print(f"  Соединений с сериями CD3CO: {len(df_dacet)}")
@@ -758,7 +759,7 @@ def run_pipeline(
             _debug(f"Превью результата:\n{result.head(5).to_string(index=False)}")
     except Exception as e:
         msg = f"[PIPELINE] ОШИБКА build_result_table: {e}\n{traceback.format_exc()}"
-        print(msg, file=sys.stderr)
+        logger.error(msg)
         messages.append(msg)
 
     print(f"  Строк в таблице: {stats.result_rows}")
@@ -786,7 +787,7 @@ def run_pipeline(
             )
         except Exception as e:
             msg = f"[PIPELINE] ОШИБКА visualize dmet: {e}"
-            print(msg, file=sys.stderr)
+            logger.error(msg)
             messages.append(msg)
         try:
             visualize_series(
@@ -800,7 +801,7 @@ def run_pipeline(
             )
         except Exception as e:
             msg = f"[PIPELINE] ОШИБКА visualize dacet: {e}"
-            print(msg, file=sys.stderr)
+            logger.error(msg)
             messages.append(msg)
 
     # -----------------------------------------------------------------------
@@ -813,7 +814,7 @@ def run_pipeline(
             _debug(f"CSV сохранён в {output_csv}, строк={len(result)}")
         except Exception as e:
             msg = f"[PIPELINE] ОШИБКА сохранения CSV: {e}"
-            print(msg, file=sys.stderr)
+            logger.error(msg)
             messages.append(msg)
 
     # -----------------------------------------------------------------------
@@ -828,7 +829,7 @@ def run_pipeline(
             create_van_krevelen_plot(result, output_path=van_krevelen_output)
         except Exception as e:
             msg = f"[PIPELINE] ОШИБКА Van Krevelen: {e}\n{traceback.format_exc()}"
-            print(msg, file=sys.stderr)
+            logger.error(msg)
             messages.append(msg)
 
     return PipelineRunResult(table=result, stats=stats, messages=messages)
@@ -915,17 +916,15 @@ def _run_test_mode(
     print("=" * 70)
 
     if not test_sets_root.exists():
-        print(
+        logger.error(
             f"[TEST] ОШИБКА: директория тест-сетов не найдена: {test_sets_root}",
-            file=sys.stderr,
         )
         return []
 
     test_sets = sorted(p for p in test_sets_root.glob("set_0*") if p.is_dir())
     if not test_sets:
-        print(
+        logger.error(
             f"[TEST] ОШИБКА: не найдено ни одного set* в {test_sets_root}",
-            file=sys.stderr,
         )
         return []
 

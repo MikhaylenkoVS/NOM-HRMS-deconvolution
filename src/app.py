@@ -248,6 +248,7 @@ class App(tk.Tk):
         self.src_var = tk.StringVar()
         self.dmet_var = tk.StringVar()
         self.dacet_var = tk.StringVar()
+        self.vk_color_var = tk.StringVar(value="N_COOH")
 
         # ── RAW-файлы (опционально, вместо CSV) ──
 
@@ -289,6 +290,9 @@ class App(tk.Tk):
         # Опрос очереди стартует после построения UI
         self._poll_log_queue()
 
+        # Корректное завершение при закрытии окна (крестик)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
         # Отложенные предупреждения об ошибках импорта
         if not CORE_LOADED:
             self._log(f"[ОШИБКА] src.core не загружен:\n{_CORE_ERROR}", color=WARN)
@@ -313,7 +317,28 @@ class App(tk.Tk):
         except queue.Empty:
             pass
         finally:
-            self.after(50, self._poll_log_queue)
+            self._poll_id = self.after(50, self._poll_log_queue)
+
+    def _on_close(self):
+        """Корректное завершение: остановка poll, закрытие matplotlib, выход."""
+        try:
+            self.after_cancel(self._poll_id)
+        except Exception:
+            pass
+        try:
+            import sys as _sys
+            _sys.stdout = _sys.__stdout__
+            _sys.stderr = _sys.__stderr__
+        except Exception:
+            pass
+        try:
+            import matplotlib.pyplot as _plt
+            _plt.close("all")
+        except Exception:
+            pass
+        self.destroy()
+        import os as _os
+        _os._exit(0)
 
     # ── методы лога ───────────────────────────────────────────────────────────
 
@@ -695,6 +720,12 @@ class App(tk.Tk):
             text="🗑 Очистить",
             command=lambda: self._clear_frame(self.vk_canvas_frame),
         ).pack(side="left", padx=4)
+        ttk.Label(ctrl, text="  Цвет по:").pack(side="left", padx=(12, 2))
+        self._vk_color_cb = ttk.Combobox(
+            ctrl, textvariable=self.vk_color_var,
+            values=["N_COOH", "N_OH"], width=8, state="readonly")
+        self._vk_color_cb.pack(side="left", padx=4)
+        self._vk_color_cb.bind("<<ComboboxSelected>>", lambda e: self._plot_van_krevelen())
         self.vk_canvas_frame = ttk.Frame(frame)
         self.vk_canvas_frame.pack(fill="both", expand=True)
         # Храним ссылку на последнюю построенную фигуру для сохранения
@@ -894,7 +925,12 @@ class App(tk.Tk):
                 f"[RAW] Усреднение {path} (RT {rt_min:.1f}–{rt_max:.1f} мин)…",
                 color=FG,
             )
+            self._set_status("Усреднение RAW-спектра…")
+            self.progress.start(10)
+            self.update_idletasks()
             path = average_raw_to_csv(path, rt_min, rt_max)
+            self.progress.stop()
+            self._set_status("Готово")
             self._log(f"[RAW] → {path}", color=OK)
 
         return path
@@ -1081,17 +1117,16 @@ class App(tk.Tk):
 
         self._structure_preview_label.configure(
             text=f"Поиск структуры...\n{brutto}")
+        self.progress.start(10)
 
         t = threading.Thread(target=self._load_structure_preview,
                              args=(brutto, n_cooh, n_oh), daemon=True)
         t.start()
 
     def _load_structure_preview(self, brutto: str, n_cooh: int, n_oh: int):
-        """Фоновый поток: поиск структуры (first_only, таймаут 5с)."""
-        import time as _time
+        """Фоновый поток: поиск структуры (first_only)."""
         try:
             from src.core import find_and_visualize_molecules
-            # first_only: остановиться на первой найденной комбинации
             result = find_and_visualize_molecules(
                 brutto, num_cooh=n_cooh, num_oh=n_oh,
                 max_bases=8, show_images=False, first_only=True,
@@ -1099,11 +1134,15 @@ class App(tk.Tk):
             molecules = result.get("molecules", [])
             self.after(0, lambda: self._show_structure_preview(molecules, brutto))
         except Exception:
-            self.after(0, lambda: self._structure_preview_label.configure(
-                text=f"Не удалось найти\nструктуру для {brutto}"))
+            self.after(0, lambda: (
+                self.progress.stop(),
+                self._structure_preview_label.configure(
+                    text=f"Не удалось найти\nструктуру для {brutto}")
+            ))
 
     def _show_structure_preview(self, molecules: list, brutto: str):
         """Отображение первой найденной структуры в панели превью."""
+        self.progress.stop()
         if not molecules:
             self._structure_preview_label.configure(
                 text=f"Структуры не найдены\n{brutto}")
@@ -1333,9 +1372,9 @@ class App(tk.Tk):
         missing = [k for k, v in found.items() if v is None]
         if missing:
             # пробуем по порядку: первый — src, второй — dmet, третий — dacet
-            csv_files.sort()
+            all_files.sort()
             for key in missing:
-                for f in csv_files:
+                for f in all_files:
                     if f not in found.values():
                         found[key] = f
                         break
@@ -1392,7 +1431,7 @@ class App(tk.Tk):
             if self._vk_figure is not None:
                 plt.close(self._vk_figure)
 
-            fig = create_van_krevelen_plot(self.result_df)
+            fig = create_van_krevelen_plot(self.result_df, color_by=self.vk_color_var.get())
             self._vk_figure = fig
             embed_figure(fig, self.vk_canvas_frame)
             self._log("[DEBUG] _plot_van_krevelen: диаграмма построена", color=OK)
@@ -1612,6 +1651,11 @@ class App(tk.Tk):
             fig.tight_layout()
             embed_figure(fig, self.hist_frame, toolbar=False)
         except Exception:
+            messagebox.showwarning(
+                "Ошибка построения гистограмм",
+                "Не удалось построить гистограммы функциональных групп.\n"
+                "Проверьте данные в таблице результатов."
+            )
             self._log(f"[ОШИБКА] _auto_plot_hist: {traceback.format_exc()}", color=WARN)
             plt.close("all")
 

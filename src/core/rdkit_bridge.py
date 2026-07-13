@@ -104,8 +104,8 @@ def visualize_fragment(
     mol = to_rdkit_mol(fragment)
 
     highlight_atoms = []
-    if highlight_attachment_points and fragment.attachment_points:
-        highlight_atoms = fragment.attachment_points
+    if highlight_attachment_points:
+        highlight_atoms = fragment.get_free_attachment_points()
 
     img = Draw.MolToImage(
         mol, size=size, highlightAtoms=highlight_atoms, highlightColor=(0.8, 1.0, 0.8)

@@ -1,4 +1,6 @@
 # core/fragment_combinations.py
+import logging
+
 from .fragments import (
     MoleculeFragment,
     FRAGMENT_LIBRARY,
@@ -10,6 +12,8 @@ from .fragments import (
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
 from .molecule import parse_formula, add_formula
+
+logger = logging.getLogger(__name__)
 
 
 def filter_fragments(target_heavy, target_ihd, fragment_library):
@@ -401,16 +405,15 @@ def find_and_visualize_molecules(
 
     ihd = (2 * C + 2 - H + N - X) / 2
 
-    print(f"📋 Исходные данные:")
-    print(f"   Брутто-формула: {brutto_formula}")
-    print(f"   Тяжёлая формула: {heavy_formula}")
-    print(f"   IHD: {ihd}")
-    print(f"   COOH групп: {num_cooh}")
-    print(f"   OH групп: {num_oh}")
-    print()
+    logger.info("📋 Исходные данные:")
+    logger.info(f"   Брутто-формула: {brutto_formula}")
+    logger.info(f"   Тяжёлая формула: {heavy_formula}")
+    logger.info(f"   IHD: {ihd}")
+    logger.info(f"   COOH групп: {num_cooh}")
+    logger.info(f"   OH групп: {num_oh}")
 
     # === ШАГ 3: Поиск комбинаций ===
-    print("🔍 Поиск возможных комбинаций фрагментов...")
+    logger.info("🔍 Поиск возможных комбинаций фрагментов...")
 
     combinations = find_fragment_combinations(
         target_heavy_formula=heavy_formula,
@@ -420,10 +423,10 @@ def find_and_visualize_molecules(
         max_bases=max_bases,
         first_only=first_only,
     )
-    print(f"✅ Найдено {len(combinations)} комбинаций")
+    logger.info(f"✅ Найдено {len(combinations)} комбинаций")
 
     if not combinations:
-        print("⚠️  Подходящих комбинаций не найдено")
+        logger.warning("⚠️  Подходящих комбинаций не найдено")
         return {
             "input": {"brutto": brutto_formula, "cooh": num_cooh, "oh": num_oh},
             "heavy_formula": heavy_formula,
@@ -434,15 +437,15 @@ def find_and_visualize_molecules(
         }
 
     # === ШАГ 4: Сборка молекул ===
-    print("\n🔧 Сборка молекул из комбинаций...")
+    logger.info("🔧 Сборка молекул из комбинаций...")
     assembled = assemble_all_combinations(combinations)
 
     successful = [r for r in assembled if r["success"]]
     failed = [r for r in assembled if not r["success"]]
 
-    print(f"✅ Успешно собрано: {len(successful)}")
+    logger.info(f"✅ Успешно собрано: {len(successful)}")
     if failed:
-        print(f"❌ Не удалось собрать: {len(failed)}")
+        logger.warning(f"❌ Не удалось собрать: {len(failed)}")
 
     # === ШАГ 5: Подготовка результата ===
     molecules_data = []
@@ -467,7 +470,7 @@ def find_and_visualize_molecules(
 
     # === ШАГ 6: Визуализация (если требуется) ===
     if show_images:
-        print("\n🎨 Визуализация структур...")
+        logger.info("🎨 Визуализация структур...")
         for mol_data in molecules_data:
             mol_obj = mol_data["fragment_object"]
 
@@ -529,23 +532,24 @@ def find_and_visualize_molecules(
             images.append(img)
             mol_data["image"] = img
 
-        print(f"✅ Создано {len(images)} изображений")
+        logger.info(f"✅ Создано {len(images)} изображений")
 
     # === ШАГ 7: Вывод результатов ===
-    print("\n" + "=" * 60)
-    print(f"📊 ИТОГО: найдено {len(molecules_data)} структур для {brutto_formula}")
-    print("=" * 60)
+    sep = "=" * 60
+    logger.info(sep)
+    logger.info(f"📊 ИТОГО: найдено {len(molecules_data)} структур для {brutto_formula}")
+    logger.info(sep)
 
     for i, mol_data in enumerate(molecules_data, 1):
-        print(f"\n{i}. {mol_data['name']}")
-        print(f"   Формула: {mol_data['formula']}")
-        print(f"   IHD: {mol_data['ihd']}")
-        print(f"   Фрагменты: {mol_data['combination']['bases']}")
-        print(
+        logger.info(f"{i}. {mol_data['name']}")
+        logger.info(f"   Формула: {mol_data['formula']}")
+        logger.info(f"   IHD: {mol_data['ihd']}")
+        logger.info(f"   Фрагменты: {mol_data['combination']['bases']}")
+        logger.info(
             f"   COOH: {mol_data['combination']['cooh']}, OH: {mol_data['combination']['oh']}"
         )
 
-    print("\n" + "=" * 60)
+    logger.info(sep)
 
     return {
         "input": {

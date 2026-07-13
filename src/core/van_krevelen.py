@@ -54,6 +54,9 @@ GRID_COLOR: str = "#cccccc"
 
 # --- Параметры точек (scatter plot) ---
 SCATTER_CMAP: str = "YlOrRd"
+# Альтернативные цветовые гаммы: для COOH (тёплая) и OH (холодная)
+SCATTER_CMAP_COOH: str = "YlOrRd"   # жёлто-оранжево-красная
+SCATTER_CMAP_OH: str = "YlGnBu"     # жёлто-зелёно-синяя
 SCATTER_EDGECOLOR: str = "#444444"
 SCATTER_LINEWIDTH: float = 0.5
 SCATTER_ALPHA: float = 0.85
@@ -207,6 +210,7 @@ def create_van_krevelen_plot(
     df: pd.DataFrame,
     output_path: Optional[str | Path] = None,
     *,
+    color_by: str = "N_COOH",
     figsize: tuple[float, float] = FIGURE_FIGSIZE,
     dpi: float = FIGURE_DEFAULT_DPI,
 ) -> plt.Figure:
@@ -216,9 +220,11 @@ def create_van_krevelen_plot(
     ----------
     df : pandas.DataFrame
         Result table. Must contain columns ``mass``, ``intensity``, ``brutto``
-        and ``N_COOH`` (or have been produced by :func:`compute_van_krevelen_data`).
+        and either ``N_COOH`` or ``N_OH`` (depending on *color_by*).
     output_path : str or Path or None, optional
         If given, the figure is saved to this path (300 DPI).
+    color_by : {'N_COOH', 'N_OH'}, optional
+        Column to colour points by. Default ``'N_COOH'``.
     figsize : tuple of float, optional
         Figure size in inches. Default ``(10, 8)``.
     dpi : float, optional
@@ -229,6 +235,13 @@ def create_van_krevelen_plot(
     matplotlib.figure.Figure
         The figure object. The caller is responsible for closing it.
     """
+    color_by = color_by.strip()
+    if color_by not in ("N_COOH", "N_OH"):
+        color_by = "N_COOH"
+
+    cmap = SCATTER_CMAP_COOH if color_by == "N_COOH" else SCATTER_CMAP_OH
+    clabel = "Number of –COOH groups" if color_by == "N_COOH" else "Number of –OH groups"
+
     # Если df уже содержит колонки h_c, o_c — используем как есть,
     # иначе вычисляем из сырой result-таблицы.
     if "h_c" in df.columns and "o_c" in df.columns:
@@ -238,7 +251,15 @@ def create_van_krevelen_plot(
 
     h_c_arr = np.asarray(data["h_c"], dtype=float)
     o_c_arr = np.asarray(data["o_c"], dtype=float)
-    n_cooh_arr = np.asarray(data["n_cooh"], dtype=int)
+    # Разрешаем обе колонки: n_cooh (историческая) и прямые N_COOH / N_OH
+    color_col = color_by.lower()
+    if color_col in data.columns:
+        color_arr = np.asarray(data[color_col], dtype=float)
+    elif color_col == "n_cooh" and "N_COOH" not in data.columns:
+        color_arr = np.asarray(data["n_cooh"], dtype=float)
+    else:
+        # fallback: возьмём N_COOH
+        color_arr = np.asarray(data["n_cooh"], dtype=float)
     intensities_arr = np.asarray(data["intensity"], dtype=float)
 
     # ── Нормализация размера точек (sqrt-шкала) ──────────────────────
@@ -289,8 +310,8 @@ def create_van_krevelen_plot(
     sc = ax.scatter(
         o_c_arr,
         h_c_arr,
-        c=n_cooh_arr,
-        cmap=SCATTER_CMAP,
+        c=color_arr,
+        cmap=cmap,
         s=sizes,
         edgecolor=SCATTER_EDGECOLOR,
         linewidth=SCATTER_LINEWIDTH,
@@ -299,7 +320,7 @@ def create_van_krevelen_plot(
 
     # ── Colorbar ──────────────────────────────────────────────────────
     cbar = plt.colorbar(sc, ax=ax)
-    cbar.set_label(COLORBAR_LABEL, color="#333333")
+    cbar.set_label(clabel, color="#333333")
     cbar.ax.yaxis.set_tick_params(color="#333333")
     plt.setp(plt.getp(cbar.ax, "yticklabels"), color="#333333")
 
