@@ -507,6 +507,96 @@ _NOM_REGION_CENTERS: list[tuple[float, float]] = [
     for r in NOM_REGIONS
 ]
 
+# ── Изотопный фильтр ¹³C (опциональный, формула Бейнона) ──────────────────
+
+# Относительные распространённости тяжёлых изотопов (в %):
+# ¹³C: 1.1%, ²H: 0.015%, ¹⁷O: 0.04%, ¹⁵N: 0.37%
+_BEYNON_COEFFS = {"C": 1.1, "H": 0.015, "O": 0.04, "N": 0.37}
+
+# Порог расхождения M+1/M для штрафа: если |реальное − теоретическое| / теоретическое > 20%
+_ISOTOPE_TOLERANCE = 0.20
+
+# Штраф к score при несовпадении изотопного паттерна (средний уровень)
+_ISOTOPE_PENALTY = 2.0
+
+# Масса ¹³C − ¹²C (Da)
+_DELTA_M1 = 1.00335
+
+
+def _beynon_m1_ratio(counts: dict[str, int]) -> float:
+    """Теоретическое соотношение (M+1)/M по формуле Бейнона.
+
+    Parameters
+    ----------
+    counts : dict of {str: int}
+        Атомные количества (C, H, O, N, ...).
+
+    Returns
+    -------
+    float
+        (M+1)/M как доля (не проценты), e.g. 0.078 для C₇H₆O₂.
+    """
+    total = 0.0
+    for el, coeff in _BEYNON_COEFFS.items():
+        total += counts.get(el, 0) * coeff
+    return total / 100.0
+
+
+def _measure_m1_ratio(
+    mass: float,
+    original_spec,
+    ppm_tol: float = 5.0,
+) -> float | None:
+    """Измерить реальное отношение M+1/M в исходном (pre-denoise) спектре.
+
+    Ищет пик на массе mass + 1.00335 Да в пределах ppm_tol.
+    Возвращает отношение интенсивностей или None, если пик не найден.
+
+    Parameters
+    ----------
+    mass : float
+        Масса моноизотопного пика (m/z).
+    original_spec : Spectrum
+        Исходный спектр до шумоподавления.
+    ppm_tol : float
+        Допуск поиска в ppm. По умолчанию 5.0.
+
+    Returns
+    -------
+    float or None
+        M1_intensity / M_intensity, или None если M+1 не найден.
+    """
+    mass_m1 = mass + _DELTA_M1
+    tol_da = mass_m1 * ppm_tol * 1e-6
+
+    masses = original_spec.table["mass"].values
+    intensities = original_spec.table["intensity"].values
+
+    diffs = np.abs(masses - mass_m1)
+    mask = diffs <= tol_da
+    if not mask.any():
+        return None
+
+    # Найти исходный пик — ближайший по массе
+    diffs_orig = np.abs(masses - mass)
+    mask_orig = diffs_orig <= (mass * ppm_tol * 1e-6)
+    if not mask_orig.any():
+        return None
+
+    idx_orig = np.argmin(diffs_orig)
+    idx_m1 = np.argmin(diffs[mask])
+    m1_indices = np.where(mask)[0]
+    idx_m1 = m1_indices[idx_m1]
+
+    intensity_orig = float(intensities[idx_orig])
+    intensity_m1 = float(intensities[idx_m1])
+
+    if intensity_orig <= 0:
+        return None
+
+    return intensity_m1 / intensity_orig
+
+
 def _nom_distance(hc: float, oc: float) -> float:
     """Минимальное евклидово расстояние от (O/C, H/C) до центра NOM-области."""
     if hc <= 0:
@@ -523,6 +613,8 @@ def assign_formulas(
     brutto_generation_mode: str = "nom_like",
     ion_mode: str = CHEM.default_ion_mode,
     nom_weight: float = 1.0,
+    isotope_filter: bool = False,
+    original=None,
     **kwargs,
 ):
     # Игнорируем устаревшие параметры для обратной совместимости
@@ -646,6 +738,15 @@ def assign_formulas(
         # (ppm внутри окна НЕ учитывается как критерий — только как допуск)
         best_local: int | None = None
         best_score = float("inf")
+
+        # Изотопный фильтр: измерить реальное M+1/M один раз для пика
+        m1_real: float | None = None
+        if isotope_filter and original is not None:
+            try:
+                m1_real = _measure_m1_ratio(mass_obs, original)
+            except Exception:
+                m1_real = None
+
         for li in global_indices:
             formula_str = cand_formulas[li]
             try:
@@ -672,9 +773,17 @@ def assign_formulas(
                 n_abs_pen = (n_abs - 3) * 2.0
             else:
                 n_abs_pen = 0.0
-            # score = nom_weight * nom_dist + dbe_pen + nc_pen + n_abs_pen
+            # Изотопный фильтр ¹³C: штраф при расхождении M+1/M > 20%
+            iso_pen = 0.0
+            if m1_real is not None and m1_real > 0:
+                m1_theor = _beynon_m1_ratio(counts)
+                if m1_theor > 0:
+                    dev = abs(m1_real - m1_theor) / m1_theor
+                    if dev > _ISOTOPE_TOLERANCE:
+                        iso_pen = _ISOTOPE_PENALTY
+            # score = nom_weight * nom_dist + dbe_pen + nc_pen + n_abs_pen + iso_pen
             # (ppm НЕ входит — в пределах окна все кандидаты равноправны по массе)
-            score = nom_weight * ndist + dbe_pen + nc_pen + n_abs_pen
+            score = nom_weight * ndist + dbe_pen + nc_pen + n_abs_pen + iso_pen
             if score < best_score:
                 best_score = score
                 best_local = li
