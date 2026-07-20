@@ -143,9 +143,10 @@ class TestVisualizeFragmentsGrid:
 
 
 class TestPrintMoleculeInfo:
-    """print_molecule_info writes to stdout — uses Molecule objects."""
+    """print_molecule_info logs via logger — uses caplog to capture."""
 
-    def test_smoke(self, capsys):
+    def test_smoke(self, caplog):
+        import logging
         from src.core.rdkit_bridge import print_molecule_info
         from src.core.molecule import Molecule
 
@@ -159,12 +160,13 @@ class TestPrintMoleculeInfo:
         m.add_bond(4, 5, 2)
         m.add_bond(5, 0, 1)
 
-        print_molecule_info(m, index=1)
-        captured = capsys.readouterr()
-        assert "СТРУКТУРА #1" in captured.out
-        assert "C6" in captured.out
+        with caplog.at_level(logging.INFO, logger="src.core.rdkit_bridge"):
+            print_molecule_info(m, index=1)
+        assert "СТРУКТУРА #1" in caplog.text
+        assert "C6" in caplog.text
 
-    def test_no_index(self, capsys):
+    def test_no_index(self, caplog):
+        import logging
         from src.core.rdkit_bridge import print_molecule_info
         from src.core.molecule import Molecule
 
@@ -175,9 +177,9 @@ class TestPrintMoleculeInfo:
         m.add_bond(0, 1, 1)
         m.add_bond(1, 2, 1)
 
-        print_molecule_info(m)
-        captured = capsys.readouterr()
-        assert "Атомов:" in captured.out
+        with caplog.at_level(logging.INFO, logger="src.core.rdkit_bridge"):
+            print_molecule_info(m)
+        assert "Атомов:" in caplog.text
 
 
 # ═══════════════════════════════════════════════════════════════════════════

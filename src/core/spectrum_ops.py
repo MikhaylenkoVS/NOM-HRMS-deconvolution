@@ -1215,14 +1215,14 @@ def visualize_series(
         returns after printing a message.
     """
     if df_series.empty:
-        print(f"[{label}] Серии не найдены.")
+        logger.info("[%s] Серии не найдены.", label)
         return
 
     has_missing = df_series[df_series["missing"].apply(len) > 0]
     display_df = has_missing.head(max_rows)
 
     if display_df.empty:
-        print(f"[{label}] Пропущенных пиков в сериях нет.")
+        logger.info("[%s] Пропущенных пиков в сериях нет.", label)
         return
 
     n_rows = len(display_df)
@@ -1325,7 +1325,7 @@ def visualize_series(
 
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"[{label}] График сохранён: {save_path}")
+        logger.info("[%s] График сохранён: %s", label, save_path)
     else:
         plt.show()
     plt.close(fig)

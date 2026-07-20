@@ -14,6 +14,7 @@ Typical usage::
 
 from __future__ import annotations
 
+import logging
 import warnings
 from pathlib import Path
 from typing import Optional
@@ -25,6 +26,8 @@ from matplotlib.patches import Polygon
 from matplotlib import patheffects
 
 from src.core.molecule import parse_formula
+
+logger = logging.getLogger(__name__)
 
 # ======================================================================
 # ПАРАМЕТРЫ ПОСТРОЕНИЯ ГРАФИКА
@@ -343,6 +346,6 @@ def create_van_krevelen_plot(
     # ── Сохранение ────────────────────────────────────────────────────
     if output_path:
         fig.savefig(str(output_path), dpi=dpi)
-        print(f"Van Krevelen plot saved to '{output_path}'")
+        logger.info("Van Krevelen plot saved to '%s'", output_path)
 
     return fig

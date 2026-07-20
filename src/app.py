@@ -253,11 +253,11 @@ class App(tk.Tk):
         try:
             _style(self)
         except Exception as e:
-            print(f"[WARN] _style failed: {e}")
+            _logging.warning(f"_style failed: {e}")
         try:
             _mpl_style()
         except Exception as e:
-            print(f"[WARN] _mpl_style failed: {e}")
+            _logging.warning(f"_mpl_style failed: {e}")
 
         # ── данные ──
         self.result_df: Optional[pd.DataFrame] = None

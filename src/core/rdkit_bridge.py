@@ -6,7 +6,11 @@ Provides converters and visualization helpers that turn the project's own
 the rest of the pipeline can run without it installed.
 """
 
+import logging
+
 from src.core.molecule import Molecule
+
+logger = logging.getLogger(__name__)
 
 
 def to_rdkit_mol(fragment: Molecule):
@@ -225,31 +229,31 @@ def print_molecule_info(mol: Molecule, index: int = None):
         first ten atoms and bonds) is written to stdout.
     """
     if index is not None:
-        print(f"\n{'='*60}")
-        print(f"СТРУКТУРА #{index}")
-        print(f"{'='*60}")
+        logger.info("\n%s", "=" * 60)
+        logger.info("СТРУКТУРА #%d", index)
+        logger.info("%s", "=" * 60)
 
-    print(f"\nМолекула: {mol.get_formula()}")
-    print(f"Атомов: {len(mol.atoms)}")
-    print(f"Связей: {len(mol.edges)}")
-    print(f"IHD: {mol.calculate_IHD()}")
-    print(f"Связна: {'Да' if mol.is_connected() else 'Нет'}")
+    logger.info("\nМолекула: %s", mol.get_formula())
+    logger.info("Атомов: %d", len(mol.atoms))
+    logger.info("Связей: %d", len(mol.edges))
+    logger.info("IHD: %d", mol.calculate_IHD())
+    logger.info("Связна: %s", "Да" if mol.is_connected() else "Нет")
 
-    print(f"\nАтомы (первые 10):")
+    logger.info("\nАтомы (первые 10):")
     for i, atom in enumerate(mol.atoms[:10]):
-        print(f"  {atom}")
+        logger.info("  %s", atom)
     if len(mol.atoms) > 10:
-        print(f"  ... и еще {len(mol.atoms) - 10} атомов")
+        logger.info("  ... и еще %d атомов", len(mol.atoms) - 10)
 
-    print(f"\nСвязи (первые 10):")
+    logger.info("\nСвязи (первые 10):")
     bond_symbols = {1: "-", 2: "=", 3: "≡"}
     for i, (a1, a2, order) in enumerate(mol.edges[:10]):
         symbol1 = mol.atoms[a1].symbol
         symbol2 = mol.atoms[a2].symbol
         bond = bond_symbols.get(order, "-")
-        print(f"  {symbol1}{a1} {bond} {symbol2}{a2}")
+        logger.info("  %s%d %s %s%d", symbol1, a1, bond, symbol2, a2)
     if len(mol.edges) > 10:
-        print(f"  ... и еще {len(mol.edges) - 10} связей")
+        logger.info("  ... и еще %d связей", len(mol.edges) - 10)
 
 
 def visualize_with_rdkit(mol: Molecule):
@@ -313,8 +317,8 @@ def visualize_with_rdkit(mol: Molecule):
         return final_mol
 
     except ImportError:
-        print("⚠️ RDKit не установлен. Используйте: !pip install rdkit")
+        logger.warning("RDKit не установлен. Используйте: !pip install rdkit")
         return None
     except Exception as e:
-        print(f"⚠️ Ошибка визуализации: {e}")
+        logger.warning("Ошибка визуализации: %s", e)
         return None
