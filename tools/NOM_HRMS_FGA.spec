@@ -72,6 +72,11 @@ if _config_dir.is_dir():
 # Also collect matplotlib's mpl-data
 _added_datas.extend(collect_data_files("matplotlib"))
 
+# Include app icon for runtime use (window icon in taskbar via iconbitmap)
+_icon_path = _ROOT / "assets" / "icon.ico"
+if _icon_path.is_file():
+    _added_datas.append((str(_icon_path), "assets"))
+
 # Merge all datas
 _all_datas: list[tuple[str, str]] = []
 _all_datas.extend(_added_datas)
@@ -91,9 +96,8 @@ _excludes: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Icon
+# Icon (embedded into EXE for Explorer — _icon_path defined above in Data files)
 # ---------------------------------------------------------------------------
-_icon_path = _ROOT / "assets" / "icon.ico"
 _icon = str(_icon_path) if _icon_path.is_file() else None
 
 # ---------------------------------------------------------------------------

@@ -214,7 +214,13 @@ class App(tk.Tk):
         super().__init__()
         try:
             import os as _os
-            _icon = _os.path.join(_os.path.dirname(__file__), '..', 'assets', 'icon.ico')
+            import sys as _sys
+            # Inside PyInstaller one-file bundle, files are extracted to _MEIPASS
+            if getattr(_sys, 'frozen', False):
+                _base = _sys._MEIPASS
+            else:
+                _base = _os.path.dirname(__file__)
+            _icon = _os.path.join(_base, 'assets', 'icon.ico')
             if _os.path.exists(_icon):
                 self.iconbitmap(_icon)
         except Exception:
@@ -572,7 +578,7 @@ class App(tk.Tk):
         self._folder_path_var = tk.StringVar()
         tk.Label(frame, textvariable=self._folder_path_var,
                  bg=BG, fg=ACCENT, font=("Segoe UI", 8), anchor="w").grid(
-            row=3, column=0, sticky="ew", padx=12, pady=(0, 2))
+            row=4, column=0, sticky="ew", padx=12, pady=(0, 2))
 
     def _build_params_processing(self, nb: ttk.Notebook):
         frame = ttk.Frame(nb)
